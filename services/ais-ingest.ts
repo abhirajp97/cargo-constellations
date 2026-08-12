@@ -4,6 +4,7 @@ import { mergeAisEnvelope, type AisEnvelope, type Vessel } from "../lib/ais.js";
 
 const upstreamUrl = "wss://stream.aisstream.io/v0/stream";
 const apiKey = process.env.AISSTREAM_API_KEY;
+const gfwApiToken = process.env.GFW_API_TOKEN;
 const downstreamPort = Number(process.env.PORT ?? process.env.AIS_RELAY_PORT ?? 8787);
 const fullGlobe = process.env.AIS_FULL_GLOBE === "true";
 const vesselTtlMs = 60 * 60 * 1000;
@@ -16,7 +17,71 @@ if (!apiKey) {
 
 const vessels = new Map<string, Vessel>();
 const dirty = new Set<string>();
-const httpServer = createServer((request, response) => {
+type SarDetection = { date: string; lat: number; lon: number; detections: number };
+type SarSnapshot = { observedAt: string; dateRange: string; source: string; filter: "unmatched-with-ais"; detections: SarDetection[] };
+let sarCache: { expiresAt: number; snapshot: SarSnapshot } | undefined;
+
+function writeJson(response: import("node:http").ServerResponse, status: number, body: unknown) {
+  response.writeHead(status, { "content-type": "application/json", "cache-control": "public, max-age=300" });
+  response.end(JSON.stringify(body));
+}
+
+function isoDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+async function fetchSarSnapshot(): Promise<SarSnapshot> {
+  if (!gfwApiToken) throw new Error("GFW_API_TOKEN is not configured");
+  if (sarCache && sarCache.expiresAt > Date.now()) return sarCache.snapshot;
+  const end = new Date(Date.now() - 5 * 86_400_000);
+  const start = new Date(end.getTime() - 7 * 86_400_000);
+  const dateRange = `${isoDate(start)},${isoDate(end)}`;
+  const url = new URL("https://gateway.api.globalfishingwatch.org/v3/4wings/report");
+  url.searchParams.set("spatial-resolution", "LOW");
+  url.searchParams.set("temporal-resolution", "ENTIRE");
+  url.searchParams.set("spatial-aggregation", "false");
+  url.searchParams.set("datasets[0]", "public-global-sar-presence:latest");
+  url.searchParams.set("filters[0]", "matched='false'");
+  url.searchParams.set("date-range", dateRange);
+  url.searchParams.set("format", "JSON");
+  const source = await fetch(url, {
+    method: "POST",
+    headers: { authorization: `Bearer ${gfwApiToken}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      geojson: {
+        type: "Polygon",
+        coordinates: [[[-179.9, -75], [179.9, -75], [179.9, 85], [-179.9, 85], [-179.9, -75]]],
+      },
+    }),
+  });
+  if (!source.ok) throw new Error(`GFW report failed (${source.status})`);
+  const report = await source.json() as { entries?: Array<Record<string, SarDetection[]>> };
+  const detections = (report.entries ?? [])
+    .flatMap((entry) => Object.values(entry).flat())
+    .filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lon) && item.detections > 0)
+    .slice(0, 6000);
+  const snapshot: SarSnapshot = {
+    observedAt: new Date().toISOString(),
+    dateRange,
+    source: "Global Fishing Watch · Sentinel-1 SAR",
+    filter: "unmatched-with-ais",
+    detections,
+  };
+  sarCache = { expiresAt: Date.now() + 6 * 60 * 60 * 1000, snapshot };
+  return snapshot;
+}
+
+const httpServer = createServer(async (request, response) => {
+  const origin = request.headers.origin;
+  if (origin && (allowedOrigins.size === 0 || allowedOrigins.has(origin))) {
+    response.setHeader("access-control-allow-origin", origin);
+    response.setHeader("vary", "Origin");
+  }
+  if (request.method === "OPTIONS") {
+    response.writeHead(204, { "access-control-allow-methods": "GET, OPTIONS", "access-control-allow-headers": "content-type" });
+    response.end();
+    return;
+  }
   if (request.url === "/health") {
     response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
     response.end(JSON.stringify({
@@ -28,12 +93,24 @@ const httpServer = createServer((request, response) => {
     }));
     return;
   }
+  if (request.url === "/api/sar") {
+    if (!gfwApiToken) {
+      writeJson(response, 503, { configured: false, message: "Global Fishing Watch token not configured" });
+      return;
+    }
+    try {
+      writeJson(response, 200, await fetchSarSnapshot());
+    } catch (error) {
+      writeJson(response, 502, { configured: true, message: error instanceof Error ? error.message : "SAR source unavailable" });
+    }
+    return;
+  }
   response.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
   response.end("Cargo Constellations AIS relay\n");
 });
 const downstream = new WebSocketServer({
   server: httpServer,
-  verifyClient: ({ origin }) => allowedOrigins.size === 0 || allowedOrigins.has(origin),
+  verifyClient: ({ origin }: { origin: string }) => allowedOrigins.size === 0 || allowedOrigins.has(origin),
 });
 let upstream: WebSocket | undefined;
 let reconnectAttempt = 0;

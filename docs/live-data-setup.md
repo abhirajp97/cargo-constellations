@@ -33,10 +33,11 @@ This repository includes `Dockerfile` and `render.yaml`.
 2. In Render, create a **Blueprint** from that repository, or create a Docker **Web Service** manually.
 3. Choose an always-on instance. A service that sleeps when idle will continually break the upstream AIS session and start with an empty world.
 4. Add `AISSTREAM_API_KEY` as a secret.
-5. Keep `AIS_FULL_GLOBE=false` initially.
-6. Set `ALLOWED_ORIGINS` to the exact Cargo Constellations site origin. Multiple origins are comma-separated.
-7. Deploy and open `https://YOUR-SERVICE.onrender.com/health`.
-8. The browser WebSocket URL is `wss://YOUR-SERVICE.onrender.com`.
+5. Add `GFW_API_TOKEN` as a secret if you want unmatched Sentinel-1 SAR detections.
+6. Keep `AIS_FULL_GLOBE=false` initially.
+7. Set `ALLOWED_ORIGINS` to the exact Cargo Constellations site origin. Multiple origins are comma-separated.
+8. Deploy and open `https://YOUR-SERVICE.onrender.com/health`.
+9. The browser WebSocket URL is `wss://YOUR-SERVICE.onrender.com`.
 
 Render Web Services accept public WebSocket connections and do not impose a fixed WebSocket duration, although deploys and infrastructure events still interrupt connections. The relay already reconnects on both sides.
 

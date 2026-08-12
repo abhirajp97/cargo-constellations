@@ -39,11 +39,11 @@ export const DATA_LAYERS: DataLayer[] = [
   { id: "load-state", label: "Load state", source: "AIS draught · derived", status: "active", description: "Laden/ballast only when vessel marks or an explicit mock label exist.", defaultOn: true },
   { id: "port-congestion", label: "Port congestion", source: "AIS nav status · derived", status: "active", description: "Anchor and moored counts near known ports. Seven-day trends require history.", defaultOn: false },
   { id: "ais-gaps", label: "AIS gaps", source: "AIS history · derived", status: "active", description: "Marks vessels silent for over ten minutes without claiming intent.", defaultOn: true },
-  { id: "sea-ice", label: "Sea ice", source: "NSIDC", status: "adapter", description: "Daily polar raster adapter; reprojection and cache job still required." },
+  { id: "sea-ice", label: "Sea ice", source: "NSIDC Sea Ice Index", status: "active", description: "Daily concentration snapshot, reprojected from NSIDC polar GeoTIFFs." },
   { id: "dark-vessels", label: "SAR detections", source: "Global Fishing Watch", status: "credential", description: "Free account and API token required for Sentinel-1 vessel detections." },
-  { id: "canal-restrictions", label: "Canal restrictions", source: "Panama Canal Authority", status: "adapter", description: "Official advisories are public PDFs; a scheduled parser is required." },
-  { id: "piracy", label: "Piracy incidents", source: "IMB PRC", status: "adapter", description: "The live public map has no documented API; ingest needs a permitted parser." },
-  { id: "commodity-prices", label: "Commodity prices", source: "Exchange-delayed feeds", status: "adapter", description: "Free availability and redistribution rights vary by contract." },
+  { id: "canal-restrictions", label: "Canal advisories", source: "Panama Canal Authority", status: "active", description: "Latest official draft, outage, navigation, booking and operations advisories." },
+  { id: "piracy", label: "Piracy incidents", source: "IMB PRC", status: "active", description: "Current-year reported piracy and armed-robbery incidents from the public IMB map." },
+  { id: "commodity-prices", label: "Commodity benchmarks", source: "World Bank Pink Sheet", status: "active", description: "Monthly public benchmarks for cocoa, coffee, wheat and copper; not live futures." },
   { id: "freight-rates", label: "Freight rates", source: "Public index releases", status: "adapter", description: "A normalized free delayed source is not yet selected." },
 ];
 

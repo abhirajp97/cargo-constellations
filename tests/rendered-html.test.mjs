@@ -25,6 +25,8 @@ test("server-renders the Cargo Constellations experience", async () => {
   assert.match(html, /EARTH &amp; INTELLIGENCE/);
   assert.match(html, /Bathymetry/);
   assert.match(html, /NOAA GFS/);
+  assert.match(html, /NSIDC Sea Ice Index/);
+  assert.match(html, /World Bank Pink Sheet/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
 });
 
@@ -33,7 +35,12 @@ test("ships the cartography and social preview assets", async () => {
     access(new URL("../public/land-110m.json", import.meta.url)),
     access(new URL("../public/bathymetry.json", import.meta.url)),
     access(new URL("../public/maritime-lanes.json", import.meta.url)),
+    access(new URL("../public/sea-ice.json", import.meta.url)),
+    access(new URL("../public/piracy-incidents.json", import.meta.url)),
+    access(new URL("../public/canal-advisories.json", import.meta.url)),
+    access(new URL("../public/commodity-prices.json", import.meta.url)),
     access(new URL("../public/og.png", import.meta.url)),
+    access(new URL("../public/og-intelligence.png", import.meta.url)),
   ]);
   const packageJson = await readFile(new URL("../package.json", import.meta.url), "utf8");
   assert.match(packageJson, /"ingest": "tsx services\/ais-ingest\.ts"/);

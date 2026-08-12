@@ -188,6 +188,20 @@ button { color: inherit; }
 .data-layer em { color: #536d69; font: normal 550 7px var(--font-geist-mono), monospace; letter-spacing: .08em; text-transform: uppercase; }
 .data-layer.active em { color: #78aaa3; }
 .layer-footnote { margin: 12px 2px 0; color: #506a66; font: 400 8px/1.55 var(--font-geist-mono), monospace; }
+.intelligence-readouts { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.intel-readout, .market-readout { display: flex; flex-direction: column; gap: 5px; padding: 10px; border: 1px solid rgba(114, 231, 216, .075); background: rgba(8, 29, 34, .48); }
+.intel-readout > span, .market-readout > span { color: #63837e; font: 550 7px var(--font-geist-mono), monospace; letter-spacing: .13em; }
+.intel-readout > strong { color: #c4d9d5; font: 440 11px var(--font-geist-mono), monospace; }
+.intel-readout > small, .market-readout > small { overflow: hidden; color: #66817d; font: 400 7px/1.45 var(--font-geist-mono), monospace; text-overflow: ellipsis; white-space: nowrap; }
+.intel-readout > a { overflow: hidden; color: #8eb0aa; font: 400 7px/1.4 var(--font-geist-mono), monospace; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.intel-readout > a:hover { color: var(--teal); }
+.market-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin: 2px 0; background: rgba(114, 231, 216, .08); }
+.market-grid > div { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 3px; padding: 8px; background: #07171b; }
+.market-grid small { grid-column: 1 / -1; color: #617b77; font: 400 7px var(--font-geist-mono), monospace; white-space: nowrap; }
+.market-grid strong { color: #c8dcd8; font: 450 12px var(--font-geist-mono), monospace; }
+.market-grid em { align-self: end; font: normal 500 7px var(--font-geist-mono), monospace; }
+.market-grid em.up { color: #72c9ae; }
+.market-grid em.down { color: #ef8d79; }
 .rail-note > p:nth-child(2) { margin: 13px 0 17px; color: #79938f; font: 400 10px/1.65 var(--font-geist-mono), monospace; }
 .truth-key { display: flex; align-items: center; gap: 10px; margin-top: 8px; color: #9bb0ad; font: 400 9px var(--font-geist-mono), monospace; }
 .solid-line, .dotted-line { width: 24px; border-top: 1px solid var(--teal); }
@@ -276,6 +290,7 @@ button { color: inherit; }
   .data-layer-list { display: grid; grid-template-columns: repeat(3, 1fr); }
   .data-layer { min-height: 34px; }
   .layer-footnote { display: none; }
+  .intelligence-readouts { display: none; }
   .source-banner { top: 91px; left: 18px; }
   .footer-note, .chokepoint-key { display: none; }
   .globe-controls { left: 18px; bottom: 158px; }

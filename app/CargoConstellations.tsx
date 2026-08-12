@@ -15,6 +15,12 @@ import {
 import { CHOKEPOINTS, PORTS, createMockAisSource } from "../lib/mock-ais";
 import { ENVIRONMENT_SAMPLES, fetchEnvironment, type EnvironmentPoint } from "../lib/environment";
 import { DATA_LAYERS, defaultLayerSet, type LayerId } from "../lib/layers";
+import {
+  fetchSarDetections,
+  fetchStaticIntelligence,
+  type SarSnapshot,
+  type StaticIntelligence,
+} from "../lib/intelligence";
 
 const COLORS: Record<Commodity, string> = {
   container: "#72E7D8",
@@ -53,6 +59,10 @@ function formatAge(ms: number) {
 
 function formatCoordinate(value: number, positive: string, negative: string) {
   return `${Math.abs(value).toFixed(3)}°${value >= 0 ? positive : negative}`;
+}
+
+function formatPrice(value: number) {
+  return value >= 100 ? value.toLocaleString("en-US", { maximumFractionDigits: 0 }) : value.toFixed(2);
 }
 
 function sunPosition(date: Date): [number, number] {
@@ -96,6 +106,8 @@ export default function CargoConstellations() {
   const bathymetryRef = useRef<BathymetryGeometry[]>([]);
   const routesRef = useRef<unknown>(null);
   const environmentRef = useRef<EnvironmentPoint[]>(ENVIRONMENT_SAMPLES);
+  const intelligenceRef = useRef<StaticIntelligence | null>(null);
+  const sarRef = useRef<SarSnapshot | null>(null);
   const lastDrawRef = useRef(0);
   const sourceRef = useRef<"mock" | "live">("mock");
 
@@ -107,6 +119,10 @@ export default function CargoConstellations() {
   const [clock, setClock] = useState(new Date(0));
   const [connection, setConnection] = useState<"demo" | "connecting" | "live" | "offline">("demo");
   const [environmentStatus, setEnvironmentStatus] = useState<"loading" | "live" | "offline">("loading");
+  const [intelligenceStatus, setIntelligenceStatus] = useState<"loading" | "live" | "offline">("loading");
+  const [sarStatus, setSarStatus] = useState<"key" | "loading" | "live" | "offline">("key");
+  const [intelligence, setIntelligence] = useState<StaticIntelligence | null>(null);
+  const [sar, setSar] = useState<SarSnapshot | null>(null);
   const [stats, setStats] = useState({ vessels: 0, moving: 0, laden: 0, anchors: 0, gaps: 0 });
 
   const selected = selectedMmsi ? storeRef.current.get(selectedMmsi) : undefined;
@@ -127,11 +143,49 @@ export default function CargoConstellations() {
   }, []);
 
   useEffect(() => {
+    let stopped = false;
+    fetchStaticIntelligence()
+      .then((data) => {
+        if (stopped) return;
+        intelligenceRef.current = data;
+        setIntelligence(data);
+        setIntelligenceStatus("live");
+      })
+      .catch(() => { if (!stopped) setIntelligenceStatus("offline"); });
+    return () => { stopped = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!wsUrl) {
+      setSarStatus("key");
+      return;
+    }
+    let stopped = false;
+    const update = () => {
+      setSarStatus((current) => current === "live" ? current : "loading");
+      fetchSarDetections(wsUrl)
+        .then((snapshot) => {
+          if (stopped) return;
+          sarRef.current = snapshot;
+          setSar(snapshot);
+          setSarStatus("live");
+        })
+        .catch((error) => {
+          if (stopped) return;
+          setSarStatus(error instanceof Error && error.message.includes("token") ? "key" : "offline");
+        });
+    };
+    update();
+    const timer = window.setInterval(update, 6 * 60 * 60 * 1000);
+    return () => { stopped = true; window.clearInterval(timer); };
+  }, [wsUrl]);
+
+  useEffect(() => {
     Promise.all([
-      fetch("/land-110m.json").then((response) => response.json()),
-      fetch("/bathymetry.json").then((response) => response.json()),
+      fetch("/land-110m.json").then(async (response) => await response.json() as Topology<{ land: GeometryCollection }>),
+      fetch("/bathymetry.json").then(async (response) => await response.json() as Topology<Record<string, GeometryCollection>>),
       fetch("/maritime-lanes.json").then((response) => response.json()),
-    ]).then(([world, bathymetry, routes]: [Topology<{ land: GeometryCollection }>, Topology<Record<string, GeometryCollection>>, unknown]) => {
+    ]).then(([world, bathymetry, routes]) => {
       landRef.current = feature(world, world.objects.land);
       bathymetryRef.current = [
         { depth: 200, geometry: feature(bathymetry, bathymetry.objects.bathy_200) },
@@ -381,6 +435,58 @@ export default function CargoConstellations() {
         }
       }
 
+      const intelligenceField = intelligenceRef.current;
+      if (layerRef.current.has("sea-ice") && intelligenceField) {
+        for (const [lon, lat, concentration] of intelligenceField.seaIce.points) {
+          if (!visible([lon, lat])) continue;
+          const point = projection([lon, lat]);
+          if (!point) continue;
+          const alpha = 0.08 + concentration / 650;
+          context.fillStyle = `rgba(186, 224, 232, ${Math.min(0.25, alpha)})`;
+          context.fillRect(point[0] - 1, point[1] - 1, 2, 2);
+        }
+      }
+
+      if (layerRef.current.has("piracy") && intelligenceField) {
+        const incidentColors: Record<string, string> = {
+          attempted: "#E9C46A",
+          boarded: "#F08D68",
+          "fired-upon": "#EF6A67",
+          hijacked: "#F1D2C7",
+          suspicious: "#AEBAC2",
+          reported: "#F08D68",
+        };
+        for (const incident of intelligenceField.piracy.incidents) {
+          if (!visible(incident.coords)) continue;
+          const point = projection(incident.coords);
+          if (!point) continue;
+          context.save();
+          context.translate(point[0], point[1]);
+          context.rotate(Math.PI / 4);
+          context.fillStyle = rgba(incidentColors[incident.category] ?? "#F08D68", 0.72);
+          context.fillRect(-2.2, -2.2, 4.4, 4.4);
+          context.restore();
+        }
+      }
+
+      if (layerRef.current.has("dark-vessels") && sarRef.current) {
+        for (const detection of sarRef.current.detections) {
+          const coords: [number, number] = [detection.lon, detection.lat];
+          if (!visible(coords)) continue;
+          const point = projection(coords);
+          if (!point) continue;
+          const size = 2.5 + Math.min(3, Math.sqrt(detection.detections));
+          context.beginPath();
+          context.moveTo(point[0] - size, point[1]);
+          context.lineTo(point[0] + size, point[1]);
+          context.moveTo(point[0], point[1] - size);
+          context.lineTo(point[0], point[1] + size);
+          context.strokeStyle = "rgba(244, 168, 104, 0.68)";
+          context.lineWidth = 0.8;
+          context.stroke();
+        }
+      }
+
       const vessels = [...storeRef.current.values()];
       for (const vessel of vessels) {
         if (!vessel.lastFix || !filterRef.current.has(vessel.commodity ?? "unknown")) continue;
@@ -412,6 +518,24 @@ export default function CargoConstellations() {
         context.strokeStyle = "rgba(235, 203, 126, 0.30)";
         context.lineWidth = 0.7;
         context.stroke();
+      }
+
+      if (layerRef.current.has("canal-restrictions") && intelligenceField) {
+        const panama: [number, number] = [-79.68, 9.08];
+        if (visible(panama)) {
+          const point = projection(panama);
+          if (point) {
+            const restricted = intelligenceField.canal.advisories.filter((advisory) => ["draft", "outage", "navigation"].includes(advisory.category)).length;
+            const pulse = 8 + Math.sin(now / 600) * 2;
+            context.beginPath();
+            context.arc(point[0], point[1], pulse + Math.min(6, restricted), 0, Math.PI * 2);
+            context.setLineDash([2, 3]);
+            context.strokeStyle = "rgba(240, 141, 104, 0.72)";
+            context.lineWidth = 1.15;
+            context.stroke();
+            context.setLineDash([]);
+          }
+        }
       }
 
       for (const port of PORTS) {
@@ -555,7 +679,8 @@ export default function CargoConstellations() {
 
   const toggleLayer = (id: LayerId) => {
     const definition = DATA_LAYERS.find((layer) => layer.id === id);
-    if (!definition || definition.locked || definition.status !== "active") return;
+    const sarReady = id === "dark-vessels" && sarStatus === "live";
+    if (!definition || definition.locked || (definition.status !== "active" && !sarReady)) return;
     setLayers((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -640,16 +765,23 @@ export default function CargoConstellations() {
             {DATA_LAYERS.map((layer) => {
               const enabled = layers.has(layer.id);
               const environmental = ["winds", "waves", "currents"].includes(layer.id);
-              const state = layer.status === "active"
-                ? environmental && environmentStatus !== "live" ? environmentStatus : enabled ? "on" : "ready"
-                : layer.status === "credential" ? "key" : "adapter";
+              const staticIntelligence = ["sea-ice", "canal-restrictions", "piracy", "commodity-prices"].includes(layer.id);
+              const darkVessels = layer.id === "dark-vessels";
+              const state = darkVessels
+                ? sarStatus === "live" ? enabled ? "on" : "ready" : sarStatus
+                : layer.status === "active"
+                  ? environmental && environmentStatus !== "live" ? environmentStatus
+                    : staticIntelligence && intelligenceStatus !== "live" ? intelligenceStatus
+                      : enabled ? "on" : "ready"
+                  : layer.status === "credential" ? "key" : "adapter";
+              const available = layer.status === "active" || (darkVessels && sarStatus === "live");
               return (
                 <button
                   type="button"
                   key={layer.id}
-                  className={`data-layer ${enabled ? "active" : ""} ${layer.status !== "active" ? "pending" : ""}`}
+                  className={`data-layer ${enabled ? "active" : ""} ${!available ? "pending" : ""}`}
                   onClick={() => toggleLayer(layer.id)}
-                  disabled={layer.status !== "active" || layer.locked}
+                  disabled={!available || layer.locked}
                   aria-pressed={enabled}
                   title={`${layer.description} Source: ${layer.source}`}
                 >
@@ -660,7 +792,59 @@ export default function CargoConstellations() {
               );
             })}
           </div>
-          <p className="layer-footnote">“Adapter” means the public source has no safe direct browser feed yet. “Key” means free registration is required.</p>
+          <p className="layer-footnote">Daily and monthly snapshots show their observation date. “Key” means the relay still needs a free provider token.</p>
+
+          {intelligence && ["sea-ice", "canal-restrictions", "piracy", "commodity-prices", "dark-vessels"].some((id) => layers.has(id as LayerId)) && (
+            <div className="intelligence-readouts" aria-label="Active intelligence layer details">
+              {layers.has("sea-ice") && (
+                <div className="intel-readout">
+                  <span>POLAR FIELD</span>
+                  <strong>{intelligence.seaIce.observedAt}</strong>
+                  <small>{intelligence.seaIce.points.length.toLocaleString()} sampled cells · ≥{intelligence.seaIce.thresholdPercent}% ice</small>
+                </div>
+              )}
+              {layers.has("canal-restrictions") && (
+                <div className="intel-readout">
+                  <span>PANAMA ADVISORIES</span>
+                  <strong>{intelligence.canal.advisories.length} current notices</strong>
+                  {intelligence.canal.advisories.slice(0, 2).map((advisory) => (
+                    <a key={advisory.id} href={advisory.url} target="_blank" rel="noreferrer">{advisory.id} · {advisory.subject}</a>
+                  ))}
+                </div>
+              )}
+              {layers.has("piracy") && (
+                <div className="intel-readout">
+                  <span>IMB REPORTED INCIDENTS</span>
+                  <strong>{intelligence.piracy.incidents.length} in {new Date().getUTCFullYear()}</strong>
+                  {intelligence.piracy.incidents.slice(0, 2).map((incident) => (
+                    <small key={incident.id} title={incident.narrative}>{incident.id} · {incident.category} · {incident.occurredAt}</small>
+                  ))}
+                </div>
+              )}
+              {layers.has("dark-vessels") && sar && (
+                <div className="intel-readout">
+                  <span>UNMATCHED SAR</span>
+                  <strong>{sar.detections.reduce((sum, detection) => sum + detection.detections, 0).toLocaleString()} detections</strong>
+                  <small>{sar.dateRange} · not proof of deliberate AIS disablement</small>
+                </div>
+              )}
+              {layers.has("commodity-prices") && (
+                <div className="market-readout">
+                  <span>WORLD BANK · {intelligence.commodities.observedAt}</span>
+                  <div className="market-grid">
+                    {intelligence.commodities.commodities.map((commodity) => (
+                      <div key={commodity.id}>
+                        <small>{commodity.label.replace(", Arabica", "")}</small>
+                        <strong>{formatPrice(commodity.value)}</strong>
+                        <em className={(commodity.changePercent ?? 0) >= 0 ? "up" : "down"}>{commodity.changePercent !== null ? `${commodity.changePercent > 0 ? "+" : ""}${commodity.changePercent}%` : "—"}</em>
+                      </div>
+                    ))}
+                  </div>
+                  <small>Monthly USD benchmarks · not futures quotes</small>
+                </div>
+              )}
+            </div>
+          )}
         </section>
 
         <section className="rail-section rail-note">

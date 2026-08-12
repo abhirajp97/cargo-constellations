@@ -4,7 +4,7 @@ An atmospheric globe of global shipping: ports as stars, vessels as points of li
 
 The application runs in an explicitly labeled synthetic AIS mode by default. Synthetic messages use the same envelope decoder and vessel store as the live pipeline, so switching sources does not change the rendering model.
 
-The globe also includes real Natural Earth bathymetry, Eurostat-derived maritime routing, a computed solar terminator, chokepoints, and live sampled NOAA GFS wind plus marine conditions through Open-Meteo. Credential-dependent and parser-dependent sources remain visibly marked as such.
+The globe also includes real Natural Earth bathymetry, Eurostat-derived maritime routing, a computed solar terminator, chokepoints, live sampled NOAA GFS wind and marine conditions, daily NSIDC sea ice, current Panama Canal advisories, current-year IMB piracy reports, and monthly World Bank commodity benchmarks. Global Fishing Watch SAR detections activate when its free token is configured on the relay.
 
 ## Local development
 
