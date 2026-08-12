@@ -314,16 +314,35 @@ export default function CargoConstellations() {
 
     let socket: WebSocket | undefined;
     let retry: number | undefined;
+    let demo: ReturnType<typeof createMockAisSource> | undefined;
     let stopped = false;
+
+    const startDemo = () => {
+      if (stopped || demo) return;
+      demo = createMockAisSource((message) => update(message, "mock"));
+      setConnection("demo");
+    };
+
+    const stopDemo = () => {
+      demo?.stop();
+      demo = undefined;
+      for (const [mmsi, vessel] of storeRef.current) {
+        if (vessel.source === "mock") storeRef.current.delete(mmsi);
+      }
+    };
+
+    const demoTimer = window.setTimeout(startDemo, 12_000);
     const connect = () => {
       if (stopped) return;
       socket = new WebSocket(wsUrl);
-      socket.onopen = () => setConnection("live");
+      socket.onopen = () => { if (!demo) setConnection("connecting"); };
       socket.onmessage = (event) => {
         try {
           const frame = JSON.parse(event.data);
           const deltas = frame.type === "snapshot" || frame.type === "deltas" ? frame.vessels : [frame];
+          let receivedPosition = false;
           for (const vessel of deltas as Vessel[]) {
+            if (vessel.lastFix) receivedPosition = true;
             const existing = storeRef.current.get(vessel.mmsi);
             const nextTrail = [...(existing?.trail ?? [])];
             if (vessel.lastFix) {
@@ -341,10 +360,15 @@ export default function CargoConstellations() {
               renderedPosition: existing?.renderedPosition,
             });
           }
+          if (receivedPosition) {
+            window.clearTimeout(demoTimer);
+            stopDemo();
+            setConnection("live");
+          }
         } catch { /* ignore malformed downstream frames */ }
       };
       socket.onclose = () => {
-        setConnection("offline");
+        if (!demo) setConnection("offline");
         retry = window.setTimeout(connect, 3000);
       };
       socket.onerror = () => socket?.close();
@@ -353,6 +377,8 @@ export default function CargoConstellations() {
     return () => {
       stopped = true;
       if (retry) window.clearTimeout(retry);
+      window.clearTimeout(demoTimer);
+      demo?.stop();
       socket?.close();
     };
   }, [wsUrl]);
