@@ -58,7 +58,7 @@ async function fetchSarSnapshot(): Promise<SarSnapshot> {
   const report = await source.json() as { entries?: Array<Record<string, SarDetection[]>> };
   const detections = (report.entries ?? [])
     .flatMap((entry) => Object.values(entry).flat())
-    .filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lon) && item.detections > 0)
+    .filter((item): item is SarDetection => Boolean(item) && Number.isFinite(item.lat) && Number.isFinite(item.lon) && item.detections > 0)
     .slice(0, 6000);
   const snapshot: SarSnapshot = {
     observedAt: new Date().toISOString(),
