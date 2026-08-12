@@ -1,0 +1,25 @@
+node_modules
+dist
+.vinext
+.wrangler
+.git
+.env
+public
+app
+docs
+tests
+examples
+db
+services:
+  - type: web
+    name: cargo-constellations-ais-relay
+    runtime: docker
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: AISSTREAM_API_KEY
+        sync: false
+      - key: AIS_FULL_GLOBE
+        value: "false"
+      - key: ALLOWED_ORIGINS
+        value: https://cargo-constellations.sanoja2000.chatgpt.site

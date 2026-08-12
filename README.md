@@ -4,6 +4,8 @@ An atmospheric globe of global shipping: ports as stars, vessels as points of li
 
 The application runs in an explicitly labeled synthetic AIS mode by default. Synthetic messages use the same envelope decoder and vessel store as the live pipeline, so switching sources does not change the rendering model.
 
+The globe also includes real Natural Earth bathymetry, Eurostat-derived maritime routing, a computed solar terminator, chokepoints, and live sampled NOAA GFS wind plus marine conditions through Open-Meteo. Credential-dependent and parser-dependent sources remain visibly marked as such.
+
 ## Local development
 
 ```bash
@@ -19,6 +21,8 @@ npm run dev
 4. Run `npm run dev` in another.
 
 The browser connects only to the local relay. The aisstream API key never enters client-side JavaScript. The relay begins with Singapore and Dover Strait bounding boxes; set `AIS_FULL_GLOBE=true` only after validating the pipeline.
+
+See [docs/live-data-setup.md](docs/live-data-setup.md) for continuous hosting and [docs/data-layers.md](docs/data-layers.md) for the complete free-layer status map.
 
 ## Truth boundary
 

@@ -1,11 +1,13 @@
 import WebSocket, { WebSocketServer } from "ws";
+import { createServer } from "node:http";
 import { mergeAisEnvelope, type AisEnvelope, type Vessel } from "../lib/ais.js";
 
 const upstreamUrl = "wss://stream.aisstream.io/v0/stream";
 const apiKey = process.env.AISSTREAM_API_KEY;
-const downstreamPort = Number(process.env.AIS_RELAY_PORT ?? 8787);
+const downstreamPort = Number(process.env.PORT ?? process.env.AIS_RELAY_PORT ?? 8787);
 const fullGlobe = process.env.AIS_FULL_GLOBE === "true";
 const vesselTtlMs = 60 * 60 * 1000;
+const allowedOrigins = new Set((process.env.ALLOWED_ORIGINS ?? "").split(",").map((value) => value.trim()).filter(Boolean));
 
 if (!apiKey) {
   console.error("AISSTREAM_API_KEY is required. Copy .env.example to .env and add your aisstream.io key.");
@@ -14,7 +16,25 @@ if (!apiKey) {
 
 const vessels = new Map<string, Vessel>();
 const dirty = new Set<string>();
-const downstream = new WebSocketServer({ port: downstreamPort });
+const httpServer = createServer((request, response) => {
+  if (request.url === "/health") {
+    response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+    response.end(JSON.stringify({
+      ok: true,
+      upstream: upstream?.readyState === WebSocket.OPEN ? "connected" : "reconnecting",
+      vessels: vessels.size,
+      clients: downstream.clients.size,
+      now: new Date().toISOString(),
+    }));
+    return;
+  }
+  response.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+  response.end("Cargo Constellations AIS relay\n");
+});
+const downstream = new WebSocketServer({
+  server: httpServer,
+  verifyClient: ({ origin }) => allowedOrigins.size === 0 || allowedOrigins.has(origin),
+});
 let upstream: WebSocket | undefined;
 let reconnectAttempt = 0;
 let reconnectTimer: NodeJS.Timeout | undefined;
@@ -35,10 +55,25 @@ function publicVessel(vessel: Vessel): Vessel {
   return { ...vessel, source: "live", renderedPosition: undefined };
 }
 
-downstream.on("connection", (client) => {
+type LiveClient = WebSocket & { isAlive?: boolean };
+
+downstream.on("connection", (client: LiveClient) => {
+  client.isAlive = true;
+  client.on("pong", () => { client.isAlive = true; });
   const snapshot = [...vessels.values()].filter((vessel) => vessel.lastFix).map(publicVessel);
   client.send(JSON.stringify({ type: "snapshot", sentAt: Date.now(), vessels: snapshot }));
 });
+
+const heartbeatTimer = setInterval(() => {
+  for (const client of downstream.clients as Set<LiveClient>) {
+    if (client.isAlive === false) {
+      client.terminate();
+      continue;
+    }
+    client.isAlive = false;
+    client.ping();
+  }
+}, 30_000);
 
 const flushTimer = setInterval(() => {
   if (!dirty.size) return;
@@ -104,10 +139,15 @@ function shutdown() {
   if (reconnectTimer) clearTimeout(reconnectTimer);
   clearInterval(flushTimer);
   clearInterval(pruneTimer);
+  clearInterval(heartbeatTimer);
   upstream?.close();
-  downstream.close(() => process.exit(0));
+  downstream.close();
+  httpServer.close(() => process.exit(0));
 }
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+httpServer.listen(downstreamPort, "0.0.0.0", () => {
+  console.log(`AIS relay listening on http://0.0.0.0:${downstreamPort}`);
+});
 connectUpstream();

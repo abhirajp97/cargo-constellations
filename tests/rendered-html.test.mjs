@@ -22,12 +22,17 @@ test("server-renders the Cargo Constellations experience", async () => {
   assert.match(html, /THE LIVING EDGES OF GLOBAL TRADE/);
   assert.match(html, /DEMONSTRATION · SYNTHETIC AIS/);
   assert.match(html, /Interactive globe showing AIS vessel positions/);
+  assert.match(html, /EARTH &amp; INTELLIGENCE/);
+  assert.match(html, /Bathymetry/);
+  assert.match(html, /NOAA GFS/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
 });
 
 test("ships the cartography and social preview assets", async () => {
   await Promise.all([
     access(new URL("../public/land-110m.json", import.meta.url)),
+    access(new URL("../public/bathymetry.json", import.meta.url)),
+    access(new URL("../public/maritime-lanes.json", import.meta.url)),
     access(new URL("../public/og.png", import.meta.url)),
   ]);
   const packageJson = await readFile(new URL("../package.json", import.meta.url), "utf8");

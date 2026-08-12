@@ -12,6 +12,7 @@
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "ingest": "tsx services/ais-ingest.ts",
+    "data:lanes": "node scripts/generate-maritime-lanes.mjs",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
@@ -43,6 +44,7 @@
     "eslint-plugin-react-hooks": "7.1.1",
     "globals": "16.4.0",
     "react-server-dom-webpack": "19.2.6",
+    "searoute-js": "^0.1.0",
     "tailwindcss": "4.2.1",
     "tsx": "^4.23.12",
     "typescript": "5.9.3",
