@@ -2,6 +2,7 @@ services:
   - type: web
     name: cargo-constellations-ais-relay
     runtime: docker
+    plan: free
     healthCheckPath: /health
     autoDeployTrigger: commit
     envVars:
