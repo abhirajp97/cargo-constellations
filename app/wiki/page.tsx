@@ -1,4 +1,5 @@
 import { DATA_LAYERS } from "../../lib/layers";
+import Link from "next/link";
 
 const principles = [
   ["Wonder before analysis", "The first job is to make the living movement of trade feel worth lingering over. The second is to help explain it."],
@@ -33,14 +34,14 @@ export default function WikiPage() {
   return (
     <main className="wiki-shell">
       <header className="wiki-masthead">
-        <a className="wiki-brand" href="/"><span aria-hidden="true">✦</span> CARGO CONSTELLATIONS</a>
+        <Link className="wiki-brand" href="/"><span aria-hidden="true">✦</span> CARGO CONSTELLATIONS</Link>
         <nav aria-label="Field guide sections">
           <a href="#purpose">Purpose</a>
           <a href="#reading">Reading the globe</a>
           <a href="#layers">Data atlas</a>
           <a href="#language">Plain language</a>
         </nav>
-        <a className="return-world" href="/">RETURN TO THE WORLD →</a>
+        <Link className="return-world" href="/">RETURN TO THE WORLD →</Link>
       </header>
 
       <article className="wiki-article">
@@ -134,7 +135,7 @@ export default function WikiPage() {
         </section>
       </article>
 
-      <footer className="wiki-footer"><p>THE LIVING EDGES OF GLOBAL TRADE</p><a href="/">Open the globe</a></footer>
+      <footer className="wiki-footer"><p>THE LIVING EDGES OF GLOBAL TRADE</p><Link href="/">Open the globe</Link></footer>
     </main>
   );
 }

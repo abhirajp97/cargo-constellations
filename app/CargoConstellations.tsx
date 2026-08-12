@@ -23,11 +23,11 @@ import {
 } from "../lib/intelligence";
 
 const COLORS: Record<Commodity, string> = {
-  container: "#72E7D8",
-  "dry-bulk": "#E9C46A",
-  tanker: "#F08D68",
-  general: "#8CB8E8",
-  unknown: "#AEBAC2",
+  container: "#F3D28A",
+  "dry-bulk": "#EF9A6D",
+  tanker: "#D9797F",
+  general: "#8FC7AE",
+  unknown: "#C9BFA9",
 };
 
 const LABELS: Record<Commodity, string> = {
@@ -39,6 +39,7 @@ const LABELS: Record<Commodity, string> = {
 };
 
 const FILTERS: Commodity[] = ["container", "dry-bulk", "tanker", "general"];
+const EMPTY_COUNTS: Record<Commodity, number> = { container: 0, "dry-bulk": 0, tanker: 0, general: 0, unknown: 0 };
 
 const LAYER_GUIDE: Partial<Record<LayerId, { color: string; cue: string; focus?: [number, number] }>> = {
   bathymetry: { color: "#4B8F9D", cue: "Nested blue contours show depth bands beneath the ocean." },
@@ -98,12 +99,23 @@ function makeGlowSprite(color: string) {
   const context = canvas.getContext("2d");
   if (!context) return canvas;
   const gradient = context.createRadialGradient(28, 28, 0, 28, 28, 27);
-  gradient.addColorStop(0, "rgba(255,255,255,1)");
-  gradient.addColorStop(0.08, rgba(color, 0.95));
-  gradient.addColorStop(0.35, rgba(color, 0.32));
+  gradient.addColorStop(0, "rgba(255,248,218,1)");
+  gradient.addColorStop(0.1, rgba(color, 0.95));
+  gradient.addColorStop(0.42, rgba(color, 0.28));
   gradient.addColorStop(1, rgba(color, 0));
   context.fillStyle = gradient;
   context.fillRect(0, 0, 56, 56);
+  context.save();
+  context.translate(28, 28);
+  context.fillStyle = "rgba(255,248,218,.96)";
+  context.beginPath();
+  context.moveTo(0, -5);
+  context.quadraticCurveTo(2.6, -1.8, 5, 0);
+  context.quadraticCurveTo(2.6, 1.8, 0, 5);
+  context.quadraticCurveTo(-2.6, 1.8, -5, 0);
+  context.quadraticCurveTo(-2.6, -1.8, 0, -5);
+  context.fill();
+  context.restore();
   return canvas;
 }
 
@@ -128,26 +140,24 @@ export default function CargoConstellations() {
   const sarRef = useRef<SarSnapshot | null>(null);
   const audioRef = useRef<{ context: AudioContext; sources: AudioScheduledSourceNode[] } | null>(null);
   const lastDrawRef = useRef(0);
-  const sourceRef = useRef<"mock" | "live">("mock");
 
   const [dimensions, setDimensions] = useState({ width: 1200, height: 760 });
   const [selectedMmsi, setSelectedMmsi] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Vessel | undefined>();
   const [autoRotate, setAutoRotate] = useState(true);
   const [filters, setFilters] = useState(new Set<Commodity>(FILTERS));
   const [layers, setLayers] = useState(defaultLayerSet);
   const [clock, setClock] = useState(new Date(0));
-  const [connection, setConnection] = useState<"demo" | "connecting" | "live" | "offline">("demo");
+  const wsUrl = process.env.NEXT_PUBLIC_AIS_WEBSOCKET_URL;
+  const [connection, setConnection] = useState<"demo" | "connecting" | "live" | "offline">(wsUrl ? "connecting" : "demo");
   const [environmentStatus, setEnvironmentStatus] = useState<"loading" | "live" | "offline">("loading");
   const [intelligenceStatus, setIntelligenceStatus] = useState<"loading" | "live" | "offline">("loading");
-  const [sarStatus, setSarStatus] = useState<"key" | "loading" | "live" | "offline">("key");
+  const [sarStatus, setSarStatus] = useState<"key" | "loading" | "live" | "offline">(wsUrl ? "loading" : "key");
   const [intelligence, setIntelligence] = useState<StaticIntelligence | null>(null);
   const [sar, setSar] = useState<SarSnapshot | null>(null);
   const [soundOn, setSoundOn] = useState(false);
   const [layerMoment, setLayerMoment] = useState<{ id: LayerId; enabled: boolean } | null>(null);
-  const [stats, setStats] = useState({ vessels: 0, moving: 0, laden: 0, anchors: 0, gaps: 0 });
-
-  const selected = selectedMmsi ? storeRef.current.get(selectedMmsi) : undefined;
-  const wsUrl = process.env.NEXT_PUBLIC_AIS_WEBSOCKET_URL;
+  const [stats, setStats] = useState({ vessels: 0, moving: 0, laden: 0, anchors: 0, gaps: 0, counts: EMPTY_COUNTS });
 
   useEffect(() => { autoRotateRef.current = autoRotate; }, [autoRotate]);
   useEffect(() => { filterRef.current = filters; }, [filters]);
@@ -231,10 +241,7 @@ export default function CargoConstellations() {
   }, []);
 
   useEffect(() => {
-    if (!wsUrl) {
-      setSarStatus("key");
-      return;
-    }
+    if (!wsUrl) return;
     let stopped = false;
     const update = () => {
       setSarStatus((current) => current === "live" ? current : "loading");
@@ -301,14 +308,10 @@ export default function CargoConstellations() {
     };
 
     if (!wsUrl) {
-      sourceRef.current = "mock";
       const mock = createMockAisSource((message) => update(message, "mock"));
-      setConnection("demo");
       return () => mock.stop();
     }
 
-    sourceRef.current = "live";
-    setConnection("connecting");
     let socket: WebSocket | undefined;
     let retry: number | undefined;
     let stopped = false;
@@ -358,17 +361,21 @@ export default function CargoConstellations() {
     const timer = window.setInterval(() => {
       const now = Date.now();
       const vessels = [...storeRef.current.values()].filter((vessel) => vessel.lastFix && now - vessel.lastFix.receivedAt < 3_600_000);
+      const counts = { ...EMPTY_COUNTS };
+      for (const vessel of vessels) counts[vessel.commodity ?? "unknown"] += 1;
       setStats({
         vessels: vessels.length,
         moving: vessels.filter((vessel) => (vessel.lastFix?.sog ?? 0) > 1).length,
         laden: vessels.filter((vessel) => vessel.loadState === "laden").length,
         anchors: vessels.filter((vessel) => [1, 5].includes(vessel.lastFix?.navStatus ?? -1)).length,
         gaps: vessels.filter((vessel) => vessel.lastFix && now - vessel.lastFix.receivedAt >= 600_000).length,
+        counts,
       });
+      setSelected(selectedMmsi ? storeRef.current.get(selectedMmsi) : undefined);
       setClock(new Date(now));
     }, 1000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [selectedMmsi]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -410,19 +417,41 @@ export default function CargoConstellations() {
       context.beginPath();
       path({ type: "Sphere" });
       const ocean = context.createRadialGradient(centerX - radius * 0.28, centerY - radius * 0.3, radius * 0.04, centerX, centerY, radius * 1.05);
-      ocean.addColorStop(0, "#123641");
-      ocean.addColorStop(0.55, "#09232D");
-      ocean.addColorStop(1, "#031016");
+      ocean.addColorStop(0, "#587896");
+      ocean.addColorStop(0.34, "#385775");
+      ocean.addColorStop(0.72, "#233A5A");
+      ocean.addColorStop(1, "#151F38");
       context.fillStyle = ocean;
       context.fill();
       context.clip();
 
+      context.save();
+      context.lineCap = "round";
+      for (let ribbon = 0; ribbon < 8; ribbon += 1) {
+        const y = centerY - radius * 0.72 + ribbon * radius * 0.2;
+        const sway = Math.sin(now / 5200 + ribbon * 1.7) * radius * 0.055;
+        context.beginPath();
+        context.moveTo(centerX - radius * 1.03, y + sway);
+        context.bezierCurveTo(
+          centerX - radius * 0.42,
+          y - radius * 0.11,
+          centerX + radius * 0.33,
+          y + radius * 0.13,
+          centerX + radius * 1.05,
+          y - sway * 0.5,
+        );
+        context.strokeStyle = ribbon % 3 === 0 ? "rgba(244, 196, 136, 0.055)" : "rgba(190, 219, 202, 0.04)";
+        context.lineWidth = 3 + (ribbon % 3) * 2.2;
+        context.stroke();
+      }
+      context.restore();
+
       if (layerRef.current.has("bathymetry")) {
         const depthColors: Record<number, string> = {
-          200: "rgba(20, 67, 77, 0.16)",
-          1000: "rgba(12, 48, 60, 0.20)",
-          3000: "rgba(7, 34, 46, 0.24)",
-          5000: "rgba(2, 20, 31, 0.30)",
+          200: "rgba(113, 151, 151, 0.18)",
+          1000: "rgba(50, 84, 112, 0.16)",
+          3000: "rgba(27, 54, 85, 0.2)",
+          5000: "rgba(16, 31, 61, 0.26)",
         };
         for (const contour of bathymetryRef.current) {
           if (!contour.geometry) continue;
@@ -430,8 +459,8 @@ export default function CargoConstellations() {
           path(contour.geometry as never);
           context.fillStyle = depthColors[contour.depth];
           context.fill();
-          context.strokeStyle = "rgba(91, 169, 175, 0.045)";
-          context.lineWidth = 0.45;
+          context.strokeStyle = "rgba(211, 226, 205, 0.08)";
+          context.lineWidth = 0.6;
           context.stroke();
         }
       }
@@ -439,25 +468,30 @@ export default function CargoConstellations() {
       if (landRef.current) {
         context.beginPath();
         path(landRef.current as never);
-        context.fillStyle = "#06161A";
+        context.fillStyle = "#536B5D";
         context.fill();
-        context.strokeStyle = "rgba(132, 198, 190, 0.14)";
-        context.lineWidth = 0.55;
+        context.strokeStyle = "rgba(244, 210, 145, 0.5)";
+        context.lineWidth = 1.2;
+        context.shadowColor = "rgba(248, 204, 130, 0.22)";
+        context.shadowBlur = 5;
         context.stroke();
+        context.shadowBlur = 0;
       }
 
       context.beginPath();
       path(graticule);
-      context.strokeStyle = "rgba(121, 209, 199, 0.07)";
-      context.lineWidth = 0.55;
+      context.setLineDash([1, 8]);
+      context.strokeStyle = "rgba(238, 219, 176, 0.12)";
+      context.lineWidth = 0.65;
       context.stroke();
+      context.setLineDash([]);
 
       if (layerRef.current.has("routes") && routesRef.current) {
         context.beginPath();
         path(routesRef.current as never);
-        context.setLineDash([2, 5]);
-        context.strokeStyle = "rgba(233, 196, 106, 0.20)";
-        context.lineWidth = 0.7;
+        context.setLineDash([7, 9]);
+        context.strokeStyle = "rgba(247, 203, 117, 0.46)";
+        context.lineWidth = 1.25;
         context.stroke();
         context.setLineDash([]);
       }
@@ -468,12 +502,12 @@ export default function CargoConstellations() {
         const night = d3.geoCircle().center(nightCenter).radius(89.5)();
         context.beginPath();
         path(night);
-        context.fillStyle = "rgba(1, 5, 12, 0.60)";
+        context.fillStyle = "rgba(35, 24, 55, 0.48)";
         context.fill();
         context.beginPath();
         path(night);
-        context.strokeStyle = "rgba(140, 184, 232, 0.22)";
-        context.lineWidth = 0.8;
+        context.strokeStyle = "rgba(243, 166, 117, 0.34)";
+        context.lineWidth = 1.15;
         context.stroke();
       }
 
@@ -483,13 +517,15 @@ export default function CargoConstellations() {
         if (!point) continue;
         if (layerRef.current.has("waves") && sample.waveHeightM !== undefined) {
           const waveRadius = 3 + Math.min(sample.waveHeightM, 8) * 1.35;
+          context.save();
+          context.translate(point[0], point[1]);
+          context.rotate(-0.35);
           context.beginPath();
-          context.arc(point[0], point[1], waveRadius, 0, Math.PI * 2);
-          context.fillStyle = `rgba(114, 184, 232, ${0.035 + Math.min(sample.waveHeightM, 8) * 0.018})`;
-          context.fill();
-          context.strokeStyle = "rgba(140, 184, 232, 0.26)";
-          context.lineWidth = 0.55;
+          context.arc(0, 0, waveRadius, Math.PI * 0.05, Math.PI * 0.9);
+          context.strokeStyle = "rgba(185, 216, 227, 0.62)";
+          context.lineWidth = 1.15;
           context.stroke();
+          context.restore();
         }
         if (layerRef.current.has("winds") && sample.windDirection !== undefined && sample.windSpeedKn !== undefined) {
           const direction = (sample.windDirection + 180) * Math.PI / 180;
@@ -497,21 +533,29 @@ export default function CargoConstellations() {
           const drift = (now / 55) % Math.max(1, length);
           const x0 = point[0] - Math.sin(direction) * (length / 2 - drift * 0.15);
           const y0 = point[1] + Math.cos(direction) * (length / 2 - drift * 0.15);
+          const x1 = x0 + Math.sin(direction) * length;
+          const y1 = y0 - Math.cos(direction) * length;
           context.beginPath();
           context.moveTo(x0, y0);
-          context.lineTo(x0 + Math.sin(direction) * length, y0 - Math.cos(direction) * length);
-          context.strokeStyle = "rgba(210, 239, 233, 0.68)";
-          context.lineWidth = 1.05;
+          context.quadraticCurveTo((x0 + x1) / 2 + Math.cos(direction) * 2.2, (y0 + y1) / 2 + Math.sin(direction) * 2.2, x1, y1);
+          context.strokeStyle = "rgba(232, 233, 202, 0.74)";
+          context.lineWidth = 1.25;
+          context.lineCap = "round";
           context.stroke();
         }
         if (layerRef.current.has("currents") && sample.currentDirection !== undefined && sample.currentSpeedKmh !== undefined) {
           const direction = sample.currentDirection * Math.PI / 180;
           const length = 4 + Math.min(sample.currentSpeedKmh, 8) * 1.4;
+          const currentX0 = point[0] - Math.sin(direction) * length / 2;
+          const currentY0 = point[1] + Math.cos(direction) * length / 2;
+          const currentX1 = point[0] + Math.sin(direction) * length / 2;
+          const currentY1 = point[1] - Math.cos(direction) * length / 2;
           context.beginPath();
-          context.moveTo(point[0] - Math.sin(direction) * length / 2, point[1] + Math.cos(direction) * length / 2);
-          context.lineTo(point[0] + Math.sin(direction) * length / 2, point[1] - Math.cos(direction) * length / 2);
-          context.strokeStyle = "rgba(93, 217, 207, 0.58)";
-          context.lineWidth = 1.45;
+          context.moveTo(currentX0, currentY0);
+          context.quadraticCurveTo(point[0] + Math.cos(direction) * 3, point[1] + Math.sin(direction) * 3, currentX1, currentY1);
+          context.strokeStyle = "rgba(116, 210, 184, 0.68)";
+          context.lineWidth = 1.65;
+          context.lineCap = "round";
           context.stroke();
         }
       }
@@ -523,8 +567,10 @@ export default function CargoConstellations() {
           const point = projection([lon, lat]);
           if (!point) continue;
           const alpha = 0.16 + concentration / 260;
-          context.fillStyle = `rgba(217, 242, 244, ${Math.min(0.58, alpha)})`;
-          context.fillRect(point[0] - 1.7, point[1] - 1.7, 3.4, 3.4);
+          context.fillStyle = `rgba(226, 239, 221, ${Math.min(0.62, alpha)})`;
+          context.beginPath();
+          context.arc(point[0], point[1], 1.85, 0, Math.PI * 2);
+          context.fill();
         }
       }
 
@@ -586,8 +632,9 @@ export default function CargoConstellations() {
           context.beginPath();
           context.moveTo(p0[0], p0[1]);
           context.lineTo(p1[0], p1[1]);
-          context.strokeStyle = rgba(color, freshness * 0.42);
-          context.lineWidth = 0.8;
+          context.strokeStyle = rgba(color, freshness * 0.58);
+          context.lineWidth = 1.15;
+          context.lineCap = "round";
           context.stroke();
         }
       }
@@ -599,7 +646,15 @@ export default function CargoConstellations() {
         const pulse = 4 + Math.sin(now / 700 + chokepoint.coords[0]) * 1.5;
         context.beginPath();
         context.arc(point[0], point[1], pulse, 0, Math.PI * 2);
-        context.strokeStyle = "rgba(235, 203, 126, 0.30)";
+        context.strokeStyle = "rgba(247, 209, 126, 0.7)";
+        context.lineWidth = 1.1;
+        context.stroke();
+        context.beginPath();
+        context.moveTo(point[0] - pulse - 3, point[1]);
+        context.lineTo(point[0] + pulse + 3, point[1]);
+        context.moveTo(point[0], point[1] - pulse - 3);
+        context.lineTo(point[0], point[1] + pulse + 3);
+        context.strokeStyle = "rgba(247, 209, 126, 0.22)";
         context.lineWidth = 0.7;
         context.stroke();
       }
@@ -627,10 +682,18 @@ export default function CargoConstellations() {
         const point = projection(port.coords);
         if (!point) continue;
         context.beginPath();
-        context.arc(point[0], point[1], 1.6, 0, Math.PI * 2);
-        context.fillStyle = "#F5DFAE";
-        context.shadowColor = "#F5DFAE";
-        context.shadowBlur = 9;
+        context.moveTo(point[0], point[1] - 4.3);
+        context.lineTo(point[0] + 1.4, point[1] - 1.2);
+        context.lineTo(point[0] + 4.3, point[1]);
+        context.lineTo(point[0] + 1.4, point[1] + 1.2);
+        context.lineTo(point[0], point[1] + 4.3);
+        context.lineTo(point[0] - 1.4, point[1] + 1.2);
+        context.lineTo(point[0] - 4.3, point[1]);
+        context.lineTo(point[0] - 1.4, point[1] - 1.2);
+        context.closePath();
+        context.fillStyle = "#F7D88F";
+        context.shadowColor = "#F7D88F";
+        context.shadowBlur = 12;
         context.fill();
         context.shadowBlur = 0;
         if (layerRef.current.has("port-congestion")) {
@@ -664,7 +727,6 @@ export default function CargoConstellations() {
         const point = projection(vessel.renderedPosition);
         if (!point) continue;
         const fade = age < 600_000 ? 1 : Math.max(0.08, 1 - (age - 600_000) / 3_000_000);
-        const color = COLORS[vessel.commodity ?? "unknown"];
         const selected = selectedMmsi === vessel.mmsi;
         const size = selected ? 38 : 26;
         const loadOpacity = layerRef.current.has("load-state") && vessel.loadState === "ballast" ? 0.5 : 0.95;
@@ -694,14 +756,14 @@ export default function CargoConstellations() {
 
       context.beginPath();
       path({ type: "Sphere" });
-      context.strokeStyle = "rgba(119, 224, 209, 0.34)";
-      context.lineWidth = 0.9;
+      context.strokeStyle = "rgba(244, 210, 149, 0.52)";
+      context.lineWidth = 1.25;
       context.stroke();
 
       const halo = context.createRadialGradient(centerX, centerY, radius * 0.96, centerX, centerY, radius * 1.12);
-      halo.addColorStop(0, "rgba(77, 220, 203, 0.07)");
-      halo.addColorStop(0.55, "rgba(77, 220, 203, 0.025)");
-      halo.addColorStop(1, "rgba(77, 220, 203, 0)");
+      halo.addColorStop(0, "rgba(246, 200, 125, 0.13)");
+      halo.addColorStop(0.48, "rgba(123, 167, 188, 0.06)");
+      halo.addColorStop(1, "rgba(85, 114, 158, 0)");
       context.beginPath();
       context.arc(centerX, centerY, radius * 1.12, 0, Math.PI * 2);
       context.fillStyle = halo;
@@ -744,7 +806,9 @@ export default function CargoConstellations() {
         .map((hit) => ({ ...hit, distance: Math.hypot(hit.x - x, hit.y - y) }))
         .filter((hit) => hit.distance < 12)
         .sort((a, b) => a.distance - b.distance)[0];
-      setSelectedMmsi(closest?.mmsi ?? null);
+      const nextMmsi = closest?.mmsi ?? null;
+      setSelectedMmsi(nextMmsi);
+      setSelected(nextMmsi ? storeRef.current.get(nextMmsi) : undefined);
     }
   }, []);
 
@@ -787,6 +851,7 @@ export default function CargoConstellations() {
 
   return (
     <main className="app-shell" ref={shellRef}>
+      <div className="sky-wash" aria-hidden="true"><i /><i /><i /><i /><i /><i /></div>
       <canvas
         ref={canvasRef}
         className="globe-canvas"
@@ -821,16 +886,16 @@ export default function CargoConstellations() {
 
       <div className={`source-banner ${connection}`}>
         <span className="status-dot" />
-        {connection === "live" ? "LIVE AIS" : connection === "connecting" ? "CONNECTING TO RELAY" : connection === "offline" ? "AIS RELAY OFFLINE" : "DEMONSTRATION · SYNTHETIC AIS"}
+        {connection === "live" ? "LIVE VOYAGES · AIS" : connection === "connecting" ? "AWAKENING THE HARBORS" : connection === "offline" ? "AIS RELAY SLEEPING" : "STORYBOOK DEMO · SYNTHETIC AIS"}
       </div>
 
       <aside className="data-rail">
         <section className="rail-section overview">
-          <p className="eyebrow">FIELD OF VIEW</p>
+          <p className="eyebrow">VISIBLE VOYAGERS</p>
           <div className="primary-stat"><strong>{stats.vessels}</strong><span>vessels reporting</span></div>
           <div className="mini-grid">
             <div><strong>{stats.moving}</strong><span>under way</span></div>
-            <div><strong>{stats.laden || "—"}</strong><span>{sourceRef.current === "mock" ? "laden (sim)" : "laden est."}</span></div>
+            <div><strong>{stats.laden || "—"}</strong><span>{connection === "demo" ? "laden (sim)" : "laden est."}</span></div>
             <div><strong>{stats.anchors}</strong><span>anchor / moored</span></div>
             <div><strong>{stats.gaps}</strong><span>AIS gaps &gt;10m</span></div>
           </div>
@@ -849,7 +914,7 @@ export default function CargoConstellations() {
               >
                 <i style={{ "--signal": COLORS[commodity] } as React.CSSProperties} />
                 <span>{LABELS[commodity]}</span>
-                <b>{[...storeRef.current.values()].filter((vessel) => vessel.commodity === commodity).length}</b>
+                <b>{stats.counts[commodity]}</b>
               </button>
             ))}
           </div>
@@ -857,7 +922,7 @@ export default function CargoConstellations() {
 
         <section className="rail-section data-layers-section">
           <div className="section-heading">
-            <p className="eyebrow">EARTH &amp; INTELLIGENCE</p>
+            <p className="eyebrow">WORLD LAYERS</p>
             <span>{layers.size} on</span>
           </div>
           <div className="data-layer-list">
@@ -948,7 +1013,7 @@ export default function CargoConstellations() {
         </section>
 
         <section className="rail-section rail-note">
-          <p className="eyebrow">READING THE FIELD</p>
+          <p className="eyebrow">TRAVELER&apos;S KEY</p>
           <p>Ports burn as fixed stars. Moving vessels leave received-fix trails; the light between fixes is dead-reckoned for no more than ten minutes.</p>
           <div className="truth-key"><span className="solid-line" />Received AIS</div>
           <div className="truth-key"><span className="dotted-line" />Rendered motion</div>
@@ -981,7 +1046,7 @@ export default function CargoConstellations() {
 
       {selected && selected.lastFix && (
         <section className="vessel-card" aria-live="polite">
-          <button className="card-close" type="button" onClick={() => setSelectedMmsi(null)} aria-label="Close vessel details">×</button>
+          <button className="card-close" type="button" onClick={() => { setSelectedMmsi(null); setSelected(undefined); }} aria-label="Close vessel details">×</button>
           <div className="card-topline">
             <span className="vessel-signal" style={{ "--signal": COLORS[selected.commodity ?? "unknown"] } as React.CSSProperties} />
             <p>{selected.source === "live" ? "AIS VESSEL" : "SYNTHETIC AIS VESSEL"}</p>
@@ -996,7 +1061,7 @@ export default function CargoConstellations() {
             <div><small>SPEED OVER GROUND</small><strong>{selected.lastFix.sog.toFixed(1)} <em>kn</em></strong></div>
             <div><small>COURSE</small><strong>{Math.round(selected.lastFix.cog)}° <em>true</em></strong></div>
             <div><small>NAVIGATION</small><strong className="text-value">{navStatusLabel(selected.lastFix.navStatus)}</strong></div>
-            <div><small>LAST RECEIVED</small><strong className="text-value">{formatAge(Date.now() - selected.lastFix.receivedAt)}</strong></div>
+            <div><small>LAST RECEIVED</small><strong className="text-value">{formatAge(clock.getTime() - selected.lastFix.receivedAt)}</strong></div>
           </div>
           <div className="voyage-row">
             <div><small>AIS DESTINATION</small><strong>{selected.destination || "Not reported"}</strong></div>
@@ -1009,7 +1074,7 @@ export default function CargoConstellations() {
       )}
 
       <footer className="footer-note">
-        <span>{["winds", "waves", "currents"].some((id) => layers.has(id as LayerId)) ? "LIVE ENVIRONMENT FIELD" : "COASTAL AIS RECEPTION"}</span>
+        <span>{["winds", "waves", "currents"].some((id) => layers.has(id as LayerId)) ? "THE LIVING WEATHER" : "COASTAL CONSTELLATIONS"}</span>
         <p>{["winds", "waves", "currents"].some((id) => layers.has(id as LayerId)) ? "NOAA GFS and marine model samples via Open-Meteo · visualization only" : "The oceans do not go dark because nothing is there. They go dark because radio has a horizon."}</p>
       </footer>
     </main>

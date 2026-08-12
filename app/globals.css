@@ -1,12 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --ink: #d9ece8;
-  --muted: #78938f;
-  --line: rgba(126, 203, 193, 0.16);
-  --panel: rgba(4, 17, 22, 0.78);
-  --teal: #72e7d8;
-  --gold: #e9c46a;
+  --ink: #f0e8d2;
+  --muted: #a59d91;
+  --line: rgba(239, 205, 145, 0.18);
+  --panel: rgba(25, 27, 42, 0.8);
+  --teal: #8fc7ae;
+  --gold: #f0c77a;
 }
 
 * { box-sizing: border-box; }
@@ -290,6 +290,110 @@ button { color: inherit; }
 .footer-note span { color: #79938f; font: 550 8px var(--font-geist-mono), monospace; letter-spacing: .16em; }
 .footer-note p { margin: 0; color: #4f6b67; font: 400 9px var(--font-geist-mono), monospace; }
 
+/* Dusk atlas art direction */
+.app-shell {
+  background:
+    radial-gradient(circle at 15% 12%, rgba(226, 156, 116, .18), transparent 28%),
+    radial-gradient(circle at 72% 48%, rgba(88, 123, 151, .23), transparent 35%),
+    linear-gradient(145deg, #332a43 0%, #1f2b47 42%, #11182d 78%, #0b1325 100%);
+}
+.app-shell::before {
+  opacity: .55;
+  background-image:
+    radial-gradient(circle at 18% 22%, rgba(249, 221, 163, .55) 0 1px, transparent 1.7px),
+    radial-gradient(circle at 74% 62%, rgba(167, 202, 178, .4) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 43% 79%, rgba(244, 177, 126, .32) 0 1px, transparent 1.5px);
+  background-size: 181px 181px, 239px 239px, 311px 311px;
+  mask-image: linear-gradient(to bottom, black, transparent 92%);
+}
+.app-shell::after {
+  background:
+    linear-gradient(115deg, rgba(238, 163, 116, .08), transparent 26%),
+    radial-gradient(ellipse at 43% 52%, transparent 44%, rgba(7, 10, 25, .48) 100%);
+}
+.sky-wash { position: absolute; inset: 0 330px 0 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.sky-wash::before { content: ""; position: absolute; width: 43vw; height: 43vw; min-width: 420px; min-height: 420px; top: -31vw; left: 16%; border-radius: 50%; background: rgba(248, 205, 132, .78); box-shadow: 0 0 110px rgba(242, 163, 104, .26); }
+.sky-wash::after { content: ""; position: absolute; inset: 0; opacity: .17; background-image: repeating-radial-gradient(ellipse at 0 0, transparent 0 3px, rgba(252,244,218,.12) 4px 5px); mix-blend-mode: soft-light; }
+.sky-wash i { position: absolute; width: 4px; height: 4px; border-radius: 70% 30% 65% 35%; background: #f5d789; box-shadow: 0 0 12px #f5c978; opacity: .55; animation: drift-mote 12s ease-in-out infinite alternate; }
+.sky-wash i:nth-child(1) { left: 8%; top: 21%; animation-delay: -2s; }
+.sky-wash i:nth-child(2) { left: 25%; top: 72%; animation-delay: -7s; }
+.sky-wash i:nth-child(3) { left: 52%; top: 14%; animation-delay: -4s; }
+.sky-wash i:nth-child(4) { left: 66%; top: 67%; animation-delay: -10s; }
+.sky-wash i:nth-child(5) { left: 84%; top: 34%; animation-delay: -6s; }
+.sky-wash i:nth-child(6) { left: 41%; top: 48%; animation-delay: -12s; }
+@keyframes drift-mote { to { transform: translate(22px, -34px) rotate(140deg); opacity: .18; } }
+
+.topbar { height: 102px; padding: 0 32px 0 40px; border-bottom-color: rgba(240,199,122,.15); background: linear-gradient(to bottom, rgba(21, 19, 37, .78), rgba(21, 19, 37, .12)); backdrop-filter: blur(10px); }
+.brand-lockup h1 { font: 400 19px/1 Georgia, serif; letter-spacing: .16em; color: #f4ead2; text-shadow: 0 2px 18px rgba(247,201,123,.16); }
+.brand-lockup p { color: #aaa293; letter-spacing: .28em; }
+.brand-mark { width: 34px; height: 34px; border: 1px solid rgba(240,199,122,.42); border-radius: 50%; transform: rotate(45deg); }
+.brand-mark span { display: none; }
+.brand-mark::before, .brand-mark::after { top: 50%; left: 50%; width: 25px; height: 1px; background: linear-gradient(90deg, transparent, #f1cf89, transparent); transform: translate(-50%,-50%); }
+.brand-mark::after { transform: translate(-50%,-50%) rotate(90deg); }
+.clock-block span { color: #989086; }
+.clock-block strong { color: #f1dfba; font-family: Georgia, serif; font-size: 21px; letter-spacing: .08em; }
+.world-nav a, .world-nav button { border-color: rgba(240,199,122,.22); border-radius: 999px; background: rgba(31,30,48,.42); color: #bbb09d; }
+.world-nav a:hover, .world-nav button:hover { border-color: rgba(240,199,122,.6); color: #f0d79f; background: rgba(61,49,58,.52); }
+.sound-glyph { border-color: #f0c77a; }
+.sound-glyph.active { background: #f0c77a; border-color: #f0c77a; box-shadow: 0 0 12px #f0c77a; }
+
+.source-banner { top: 123px; left: 40px; padding: 9px 14px; border-color: rgba(242,195,112,.5); border-radius: 999px; background: rgba(55,43,48,.72); color: #f3d28a; box-shadow: 0 10px 35px rgba(14,12,25,.18); }
+.source-banner.live { color: #b5dec2; border-color: rgba(143,199,174,.55); background: rgba(35,61,58,.68); }
+.source-banner.offline { color: #efa28b; border-color: rgba(239,162,139,.45); }
+.status-dot { width: 6px; height: 6px; box-shadow: 0 0 13px currentColor; }
+
+.data-rail { top: 116px; right: 22px; bottom: 76px; width: 332px; padding-top: 7px; border: 1px solid rgba(240,199,122,.2); border-radius: 20px; background: linear-gradient(145deg, rgba(35,35,54,.74), rgba(19,26,43,.9)); box-shadow: 0 28px 80px rgba(8,10,23,.38), inset 0 1px rgba(255,239,203,.06); backdrop-filter: blur(18px) saturate(1.15); }
+.data-rail::before { content: "✦  THE WAYFARER'S ATLAS"; display: block; padding: 14px 26px 9px; color: #c9ad78; font: 600 7px var(--font-geist-mono), monospace; letter-spacing: .2em; }
+.rail-section { padding: 20px 24px; border-bottom-color: rgba(240,199,122,.12); }
+.eyebrow { color: #bd9f70; }
+.primary-stat strong { color: #f1dfba; font-family: Georgia, serif; font-size: 48px; }
+.primary-stat span, .section-heading > span { color: #9f978b; }
+.mini-grid { gap: 8px; background: transparent; }
+.mini-grid > div { border: 1px solid rgba(240,199,122,.1); border-radius: 11px; background: rgba(71,68,80,.18); }
+.mini-grid strong { color: #e5d6bd; font-family: Georgia, serif; }
+.mini-grid span { color: #938b81; }
+.filter-list { gap: 5px; }
+.filter { min-height: 39px; border-radius: 11px; }
+.filter:hover { background: rgba(240,199,122,.07); }
+.filter.active { border-color: rgba(240,199,122,.16); background: linear-gradient(90deg, rgba(240,199,122,.09), rgba(143,199,174,.025)); }
+.filter i, .vessel-signal { border-radius: 55% 20% 55% 20%; transform: rotate(45deg); box-shadow: 0 0 11px var(--signal); }
+.filter span { color: #d0c6b6; }
+.filter b { color: #978e82; }
+.data-layer-list { gap: 4px; }
+.data-layer { min-height: 42px; border-radius: 11px; }
+.data-layer:hover:not(:disabled) { background: rgba(240,199,122,.06); }
+.data-layer.active { border-color: color-mix(in srgb, var(--layer-color) 34%, transparent); border-left-width: 1px; background: linear-gradient(90deg, color-mix(in srgb, var(--layer-color) 14%, transparent), rgba(239,205,145,.02)); }
+.layer-state { border-radius: 4px; transform: rotate(45deg); border-color: #756f6a; background: rgba(24,28,43,.8); }
+.layer-state > span { border-radius: 2px; }
+.layer-copy b { color: #d8ccba; font-size: 9px; }
+.layer-copy small, .data-layer em, .layer-footnote { color: #8f877e; }
+.data-layer.active em { color: #d0b987; }
+.intel-readout, .market-readout { border-color: rgba(240,199,122,.13); border-radius: 12px; background: rgba(69,65,74,.2); }
+.intel-readout > span, .market-readout > span { color: #b69a6e; }
+.intel-readout > strong, .market-grid strong { color: #e8dbc2; }
+.market-grid { gap: 5px; background: transparent; }
+.market-grid > div { border-radius: 8px; background: rgba(26,35,49,.58); }
+.rail-note > p:nth-child(2), .truth-key { color: #aaa092; }
+.solid-line, .dotted-line { border-color: #f0c77a; }
+
+.globe-controls { left: 40px; bottom: 83px; color: #aaa091; }
+.globe-controls button { width: 36px; height: 36px; border-color: rgba(240,199,122,.38); background: rgba(47,42,58,.58); color: #f0d291; box-shadow: 0 8px 24px rgba(10,10,23,.28); }
+.globe-controls button:hover { border-color: #f0c77a; }
+.chokepoint-key { right: 380px; bottom: 86px; color: #a99f8d; }
+.chokepoint-key span { border-color: rgba(240,199,122,.75); box-shadow: 0 0 12px rgba(240,199,122,.45); }
+.layer-moment { bottom: 82px; border-color: rgba(240,199,122,.35); border-radius: 16px; background: linear-gradient(145deg, rgba(50,45,59,.9), rgba(27,34,49,.92)); box-shadow: 0 24px 65px rgba(9,10,23,.4); }
+.layer-moment small { color: #b79a6c; }
+.layer-moment strong { color: #f0e3cc; font-family: Georgia, serif; font-size: 16px; }
+.layer-moment p { color: #b3a99a; }
+.vessel-card { border-color: rgba(240,199,122,.38); border-radius: 18px; background: linear-gradient(145deg, rgba(50,45,59,.93), rgba(26,34,49,.95)); box-shadow: 0 25px 75px rgba(8,9,22,.45); }
+.vessel-card::before { left: 24px; top: -1px; width: 82px; background: linear-gradient(90deg, transparent, #f0c77a, transparent); box-shadow: 0 0 13px rgba(240,199,122,.7); }
+.vessel-card h2 { color: #f1e3c8; font-family: Georgia, serif; font-size: 27px; font-weight: 400; }
+.card-topline p, .vessel-id, .detail-grid small, .voyage-row small, .provenance-note { color: #9f9588; }
+.coordinates, .detail-grid strong, .voyage-row strong { color: #eadcc2; }
+.footer-note { right: 376px; bottom: 18px; height: 43px; border: 1px solid rgba(240,199,122,.12); border-radius: 999px; margin: 0 40px; padding: 0 18px; background: rgba(27,29,45,.48); backdrop-filter: blur(10px); }
+.footer-note span { color: #c4a973; }
+.footer-note p { color: #9d9589; }
+
 @media (max-width: 900px) {
   .app-shell { min-height: 560px; }
   .topbar { height: 76px; padding: 0 18px; }
@@ -300,7 +404,10 @@ button { color: inherit; }
   .world-nav { margin: 0 12px 0 auto; }
   .world-nav a { display: none; }
   .world-nav button { padding: 0 9px; }
-  .data-rail { top: auto; bottom: 0; width: 100%; height: 140px; display: flex; border-left: 0; border-top: 1px solid var(--line); overflow-x: auto; overflow-y: hidden; }
+  .sky-wash { inset: 0; }
+  .sky-wash::before { top: -330px; left: 4%; }
+  .data-rail { top: auto; right: 0; bottom: 0; width: 100%; height: 140px; display: flex; border: 0; border-top: 1px solid var(--line); border-radius: 0; overflow-x: auto; overflow-y: hidden; }
+  .data-rail::before { display: none; }
   .rail-section { min-width: 270px; padding: 16px 18px; border-bottom: 0; border-right: 1px solid var(--line); }
   .overview .primary-stat { margin-top: 8px; }
   .overview .primary-stat strong { font-size: 28px; }
