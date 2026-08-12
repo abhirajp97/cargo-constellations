@@ -40,6 +40,9 @@ const LABELS: Record<Commodity, string> = {
 
 const FILTERS: Commodity[] = ["container", "dry-bulk", "tanker", "general"];
 const EMPTY_COUNTS: Record<Commodity, number> = { container: 0, "dry-bulk": 0, tanker: 0, general: 0, unknown: 0 };
+const DEFAULT_AIS_WEBSOCKET_URL = "wss://cargo-constellations-ais-relay.onrender.com";
+const AIS_WEBSOCKET_URL = process.env.NEXT_PUBLIC_AIS_WEBSOCKET_URL || DEFAULT_AIS_WEBSOCKET_URL;
+const LIVE_GRACE_PERIOD_MS = 45_000;
 
 const LAYER_GUIDE: Partial<Record<LayerId, { color: string; cue: string; focus?: [number, number] }>> = {
   bathymetry: { color: "#4B8F9D", cue: "Nested blue contours show depth bands beneath the ocean." },
@@ -148,7 +151,7 @@ export default function CargoConstellations() {
   const [filters, setFilters] = useState(new Set<Commodity>(FILTERS));
   const [layers, setLayers] = useState(defaultLayerSet);
   const [clock, setClock] = useState(new Date(0));
-  const wsUrl = process.env.NEXT_PUBLIC_AIS_WEBSOCKET_URL;
+  const wsUrl = AIS_WEBSOCKET_URL;
   const [connection, setConnection] = useState<"demo" | "connecting" | "live" | "offline">(wsUrl ? "connecting" : "demo");
   const [environmentStatus, setEnvironmentStatus] = useState<"loading" | "live" | "offline">("loading");
   const [intelligenceStatus, setIntelligenceStatus] = useState<"loading" | "live" | "offline">("loading");
@@ -331,7 +334,7 @@ export default function CargoConstellations() {
       }
     };
 
-    const demoTimer = window.setTimeout(startDemo, 12_000);
+    const demoTimer = window.setTimeout(startDemo, LIVE_GRACE_PERIOD_MS);
     const connect = () => {
       if (stopped) return;
       socket = new WebSocket(wsUrl);
@@ -442,42 +445,44 @@ export default function CargoConstellations() {
       context.save();
       context.beginPath();
       path({ type: "Sphere" });
-      const ocean = context.createRadialGradient(centerX - radius * 0.28, centerY - radius * 0.3, radius * 0.04, centerX, centerY, radius * 1.05);
-      ocean.addColorStop(0, "#587896");
-      ocean.addColorStop(0.34, "#385775");
-      ocean.addColorStop(0.72, "#233A5A");
-      ocean.addColorStop(1, "#151F38");
+      const ocean = context.createRadialGradient(centerX - radius * 0.34, centerY - radius * 0.38, radius * 0.03, centerX, centerY, radius * 1.08);
+      ocean.addColorStop(0, "#496C87");
+      ocean.addColorStop(0.26, "#284D6B");
+      ocean.addColorStop(0.66, "#142E4B");
+      ocean.addColorStop(1, "#09172C");
       context.fillStyle = ocean;
       context.fill();
       context.clip();
 
       context.save();
       context.lineCap = "round";
-      for (let ribbon = 0; ribbon < 8; ribbon += 1) {
-        const y = centerY - radius * 0.72 + ribbon * radius * 0.2;
-        const sway = Math.sin(now / 5200 + ribbon * 1.7) * radius * 0.055;
+      context.globalCompositeOperation = "screen";
+      for (let ribbon = 0; ribbon < 13; ribbon += 1) {
+        const y = centerY - radius * 0.82 + ribbon * radius * 0.135;
+        const sway = Math.sin(now / 6800 + ribbon * 1.41) * radius * 0.045;
         context.beginPath();
         context.moveTo(centerX - radius * 1.03, y + sway);
         context.bezierCurveTo(
-          centerX - radius * 0.42,
-          y - radius * 0.11,
-          centerX + radius * 0.33,
-          y + radius * 0.13,
+          centerX - radius * (0.5 - (ribbon % 3) * 0.07),
+          y - radius * (0.07 + (ribbon % 4) * 0.014),
+          centerX + radius * (0.28 + (ribbon % 2) * 0.08),
+          y + radius * (0.08 + (ribbon % 3) * 0.018),
           centerX + radius * 1.05,
           y - sway * 0.5,
         );
-        context.strokeStyle = ribbon % 3 === 0 ? "rgba(244, 196, 136, 0.055)" : "rgba(190, 219, 202, 0.04)";
-        context.lineWidth = 3 + (ribbon % 3) * 2.2;
+        context.strokeStyle = ribbon % 4 === 0 ? "rgba(224, 166, 92, 0.09)" : "rgba(181, 211, 196, 0.052)";
+        context.lineWidth = 1.1 + (ribbon % 4) * 1.35;
         context.stroke();
       }
+      context.globalCompositeOperation = "source-over";
       context.restore();
 
       if (layerRef.current.has("bathymetry")) {
         const depthColors: Record<number, string> = {
-          200: "rgba(113, 151, 151, 0.18)",
-          1000: "rgba(50, 84, 112, 0.16)",
-          3000: "rgba(27, 54, 85, 0.2)",
-          5000: "rgba(16, 31, 61, 0.26)",
+          200: "rgba(131, 167, 157, 0.18)",
+          1000: "rgba(56, 93, 119, 0.2)",
+          3000: "rgba(24, 56, 91, 0.24)",
+          5000: "rgba(8, 28, 57, 0.3)",
         };
         for (const contour of bathymetryRef.current) {
           if (!contour.geometry) continue;
@@ -485,7 +490,7 @@ export default function CargoConstellations() {
           path(contour.geometry as never);
           context.fillStyle = depthColors[contour.depth];
           context.fill();
-          context.strokeStyle = "rgba(211, 226, 205, 0.08)";
+          context.strokeStyle = "rgba(229, 213, 169, 0.1)";
           context.lineWidth = 0.6;
           context.stroke();
         }
@@ -494,30 +499,42 @@ export default function CargoConstellations() {
       if (landRef.current) {
         context.beginPath();
         path(landRef.current as never);
-        context.fillStyle = "#536B5D";
+        const landWash = context.createLinearGradient(centerX - radius, centerY - radius, centerX + radius, centerY + radius);
+        landWash.addColorStop(0, "#A58B59");
+        landWash.addColorStop(0.42, "#716F52");
+        landWash.addColorStop(1, "#414E45");
+        context.fillStyle = landWash;
         context.fill();
-        context.strokeStyle = "rgba(244, 210, 145, 0.5)";
-        context.lineWidth = 1.2;
-        context.shadowColor = "rgba(248, 204, 130, 0.22)";
-        context.shadowBlur = 5;
+        context.strokeStyle = "rgba(240, 205, 132, 0.72)";
+        context.lineWidth = 1.35;
+        context.shadowColor = "rgba(230, 170, 83, 0.35)";
+        context.shadowBlur = 7;
         context.stroke();
         context.shadowBlur = 0;
       }
 
       context.beginPath();
       path(graticule);
-      context.setLineDash([1, 8]);
-      context.strokeStyle = "rgba(238, 219, 176, 0.12)";
-      context.lineWidth = 0.65;
+      context.setLineDash([0.8, 10]);
+      context.lineCap = "round";
+      context.strokeStyle = "rgba(238, 214, 160, 0.115)";
+      context.lineWidth = 0.8;
       context.stroke();
       context.setLineDash([]);
 
       if (layerRef.current.has("routes") && routesRef.current) {
         context.beginPath();
         path(routesRef.current as never);
-        context.setLineDash([7, 9]);
-        context.strokeStyle = "rgba(247, 203, 117, 0.46)";
-        context.lineWidth = 1.25;
+        context.setLineDash([]);
+        context.strokeStyle = "rgba(238, 183, 86, 0.12)";
+        context.lineWidth = 4.5;
+        context.stroke();
+        context.beginPath();
+        path(routesRef.current as never);
+        context.setLineDash([1, 7]);
+        context.lineCap = "round";
+        context.strokeStyle = "rgba(250, 210, 125, 0.68)";
+        context.lineWidth = 1.5;
         context.stroke();
         context.setLineDash([]);
       }
@@ -528,11 +545,11 @@ export default function CargoConstellations() {
         const night = d3.geoCircle().center(nightCenter).radius(89.5)();
         context.beginPath();
         path(night);
-        context.fillStyle = "rgba(35, 24, 55, 0.48)";
+        context.fillStyle = "rgba(18, 13, 38, 0.55)";
         context.fill();
         context.beginPath();
         path(night);
-        context.strokeStyle = "rgba(243, 166, 117, 0.34)";
+        context.strokeStyle = "rgba(212, 82, 54, 0.45)";
         context.lineWidth = 1.15;
         context.stroke();
       }
@@ -913,6 +930,11 @@ export default function CargoConstellations() {
       <div className={`source-banner ${connection}`}>
         <span className="status-dot" />
         {connection === "live" ? "LIVE VOYAGES · AIS" : connection === "connecting" ? "AWAKENING THE HARBORS" : connection === "offline" ? "AIS RELAY SLEEPING" : "STORYBOOK DEMO · SYNTHETIC AIS"}
+      </div>
+
+      <div className="map-verse" aria-hidden="true">
+        <span>FIELD I · THE OCEAN BETWEEN</span>
+        <p>Every light, a voyage.<br />Every silence, a horizon.</p>
       </div>
 
       <aside className="data-rail">
