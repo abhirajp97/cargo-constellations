@@ -40,6 +40,24 @@ const LABELS: Record<Commodity, string> = {
 
 const FILTERS: Commodity[] = ["container", "dry-bulk", "tanker", "general"];
 
+const LAYER_GUIDE: Partial<Record<LayerId, { color: string; cue: string; focus?: [number, number] }>> = {
+  bathymetry: { color: "#4B8F9D", cue: "Nested blue contours show depth bands beneath the ocean." },
+  routes: { color: "#E9C46A", cue: "Gold dotted paths are computed sea routes, not live vessel tracks." },
+  "day-night": { color: "#8CB8E8", cue: "The shaded hemisphere is night; its edge follows the real UTC sun." },
+  chokepoints: { color: "#F1D08A", cue: "Gold breathing rings mark the narrow passages trade funnels through." },
+  winds: { color: "#C7E4DE", cue: "Pale moving strokes show modeled surface-wind direction and speed." },
+  waves: { color: "#78AEE8", cue: "Blue rings grow with modeled significant wave height." },
+  currents: { color: "#5DD9CF", cue: "Teal strokes trace modeled surface-current direction and speed." },
+  "load-state": { color: "#E9C46A", cue: "Likely laden ships stay bright; likely ballast ships become quieter." },
+  "port-congestion": { color: "#F08D68", cue: "Warm rings gather around ports with anchored or moored vessels." },
+  "ais-gaps": { color: "#F08D68", cue: "Dotted rings mark vessels silent for more than ten minutes." },
+  "sea-ice": { color: "#D9F2F4", cue: "Pale polar cells show daily sea-ice concentration above 15%.", focus: [0, -62] },
+  "dark-vessels": { color: "#F4A868", cue: "Crosses are radar vessel detections not matched to AIS—not proof of intent." },
+  "canal-restrictions": { color: "#F08D68", cue: "A warm dashed pulse marks current Panama Canal advisories.", focus: [79.68, -9.08] },
+  piracy: { color: "#FF765F", cue: "Warm diamonds are incidents reported to the IMB Piracy Reporting Centre.", focus: [-100, -8] },
+  "commodity-prices": { color: "#E9C46A", cue: "Monthly public benchmarks appear in the adjacent reading panel." },
+};
+
 type LandGeometry = ReturnType<typeof feature> | null;
 type BathymetryGeometry = { depth: number; geometry: LandGeometry };
 
@@ -108,6 +126,7 @@ export default function CargoConstellations() {
   const environmentRef = useRef<EnvironmentPoint[]>(ENVIRONMENT_SAMPLES);
   const intelligenceRef = useRef<StaticIntelligence | null>(null);
   const sarRef = useRef<SarSnapshot | null>(null);
+  const audioRef = useRef<{ context: AudioContext; sources: AudioScheduledSourceNode[] } | null>(null);
   const lastDrawRef = useRef(0);
   const sourceRef = useRef<"mock" | "live">("mock");
 
@@ -123,6 +142,8 @@ export default function CargoConstellations() {
   const [sarStatus, setSarStatus] = useState<"key" | "loading" | "live" | "offline">("key");
   const [intelligence, setIntelligence] = useState<StaticIntelligence | null>(null);
   const [sar, setSar] = useState<SarSnapshot | null>(null);
+  const [soundOn, setSoundOn] = useState(false);
+  const [layerMoment, setLayerMoment] = useState<{ id: LayerId; enabled: boolean } | null>(null);
   const [stats, setStats] = useState({ vessels: 0, moving: 0, laden: 0, anchors: 0, gaps: 0 });
 
   const selected = selectedMmsi ? storeRef.current.get(selectedMmsi) : undefined;
@@ -131,6 +152,60 @@ export default function CargoConstellations() {
   useEffect(() => { autoRotateRef.current = autoRotate; }, [autoRotate]);
   useEffect(() => { filterRef.current = filters; }, [filters]);
   useEffect(() => { layerRef.current = layers; }, [layers]);
+
+  useEffect(() => {
+    if (!soundOn) {
+      audioRef.current?.sources.forEach((source) => { try { source.stop(); } catch { /* already stopped */ } });
+      audioRef.current?.context.close().catch(() => undefined);
+      audioRef.current = null;
+      return;
+    }
+
+    const context = new AudioContext();
+    const master = context.createGain();
+    master.gain.setValueAtTime(0.0001, context.currentTime);
+    master.gain.exponentialRampToValueAtTime(0.055, context.currentTime + 2.5);
+    master.connect(context.destination);
+
+    const filter = context.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 520;
+    filter.Q.value = 0.7;
+    filter.connect(master);
+
+    const noiseBuffer = context.createBuffer(1, context.sampleRate * 8, context.sampleRate);
+    const noise = noiseBuffer.getChannelData(0);
+    let drift = 0;
+    for (let index = 0; index < noise.length; index += 1) {
+      drift = (drift + (Math.random() * 2 - 1) * 0.018) * 0.997;
+      noise[index] = drift;
+    }
+    const sea = context.createBufferSource();
+    sea.buffer = noiseBuffer;
+    sea.loop = true;
+    sea.connect(filter);
+
+    const tone = context.createOscillator();
+    const toneGain = context.createGain();
+    tone.type = "sine";
+    tone.frequency.value = 54;
+    toneGain.gain.value = 0.028;
+    tone.connect(toneGain).connect(master);
+
+    const lfo = context.createOscillator();
+    const lfoGain = context.createGain();
+    lfo.frequency.value = 0.075;
+    lfoGain.gain.value = 0.012;
+    lfo.connect(lfoGain).connect(toneGain.gain);
+    [sea, tone, lfo].forEach((source) => source.start());
+    audioRef.current = { context, sources: [sea, tone, lfo] };
+
+    return () => {
+      [sea, tone, lfo].forEach((source) => { try { source.stop(); } catch { /* already stopped */ } });
+      context.close().catch(() => undefined);
+      audioRef.current = null;
+    };
+  }, [soundOn]);
 
   useEffect(() => {
     const observer = new ResizeObserver(([entry]) => {
@@ -390,10 +465,16 @@ export default function CargoConstellations() {
       if (layerRef.current.has("day-night")) {
         const sun = sunPosition(new Date());
         const nightCenter: [number, number] = [((sun[0] + 180 + 540) % 360) - 180, -sun[1]];
+        const night = d3.geoCircle().center(nightCenter).radius(89.5)();
         context.beginPath();
-        path(d3.geoCircle().center(nightCenter).radius(89.5)());
-        context.fillStyle = "rgba(1, 5, 10, 0.45)";
+        path(night);
+        context.fillStyle = "rgba(1, 5, 12, 0.60)";
         context.fill();
+        context.beginPath();
+        path(night);
+        context.strokeStyle = "rgba(140, 184, 232, 0.22)";
+        context.lineWidth = 0.8;
+        context.stroke();
       }
 
       for (const sample of environmentRef.current) {
@@ -419,8 +500,8 @@ export default function CargoConstellations() {
           context.beginPath();
           context.moveTo(x0, y0);
           context.lineTo(x0 + Math.sin(direction) * length, y0 - Math.cos(direction) * length);
-          context.strokeStyle = "rgba(181, 225, 218, 0.48)";
-          context.lineWidth = 0.75;
+          context.strokeStyle = "rgba(210, 239, 233, 0.68)";
+          context.lineWidth = 1.05;
           context.stroke();
         }
         if (layerRef.current.has("currents") && sample.currentDirection !== undefined && sample.currentSpeedKmh !== undefined) {
@@ -429,8 +510,8 @@ export default function CargoConstellations() {
           context.beginPath();
           context.moveTo(point[0] - Math.sin(direction) * length / 2, point[1] + Math.cos(direction) * length / 2);
           context.lineTo(point[0] + Math.sin(direction) * length / 2, point[1] - Math.cos(direction) * length / 2);
-          context.strokeStyle = "rgba(93, 217, 207, 0.34)";
-          context.lineWidth = 1.1;
+          context.strokeStyle = "rgba(93, 217, 207, 0.58)";
+          context.lineWidth = 1.45;
           context.stroke();
         }
       }
@@ -441,9 +522,9 @@ export default function CargoConstellations() {
           if (!visible([lon, lat])) continue;
           const point = projection([lon, lat]);
           if (!point) continue;
-          const alpha = 0.08 + concentration / 650;
-          context.fillStyle = `rgba(186, 224, 232, ${Math.min(0.25, alpha)})`;
-          context.fillRect(point[0] - 1, point[1] - 1, 2, 2);
+          const alpha = 0.16 + concentration / 260;
+          context.fillStyle = `rgba(217, 242, 244, ${Math.min(0.58, alpha)})`;
+          context.fillRect(point[0] - 1.7, point[1] - 1.7, 3.4, 3.4);
         }
       }
 
@@ -463,8 +544,11 @@ export default function CargoConstellations() {
           context.save();
           context.translate(point[0], point[1]);
           context.rotate(Math.PI / 4);
-          context.fillStyle = rgba(incidentColors[incident.category] ?? "#F08D68", 0.72);
-          context.fillRect(-2.2, -2.2, 4.4, 4.4);
+          const incidentColor = incidentColors[incident.category] ?? "#F08D68";
+          context.shadowColor = incidentColor;
+          context.shadowBlur = 8;
+          context.fillStyle = rgba(incidentColor, 0.92);
+          context.fillRect(-3.1, -3.1, 6.2, 6.2);
           context.restore();
         }
       }
@@ -683,7 +767,15 @@ export default function CargoConstellations() {
     if (!definition || definition.locked || (definition.status !== "active" && !sarReady)) return;
     setLayers((current) => {
       const next = new Set(current);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      const enabling = !next.has(id);
+      if (!enabling) next.delete(id); else next.add(id);
+      setLayerMoment({ id, enabled: enabling });
+      const focus = LAYER_GUIDE[id]?.focus;
+      if (enabling && focus) {
+        rotationRef.current = focus;
+        autoRotateRef.current = false;
+        setAutoRotate(false);
+      }
       return next;
     });
   };
@@ -714,6 +806,13 @@ export default function CargoConstellations() {
             <p>THE LIVING EDGES OF GLOBAL TRADE</p>
           </div>
         </div>
+        <nav className="world-nav" aria-label="Project navigation">
+          <a href="/wiki">FIELD GUIDE</a>
+          <button type="button" onClick={() => setSoundOn((value) => !value)} aria-pressed={soundOn}>
+            <span className={soundOn ? "sound-glyph active" : "sound-glyph"} aria-hidden="true" />
+            {soundOn ? "OCEAN ON" : "OCEAN OFF"}
+          </button>
+        </nav>
         <div className="clock-block">
           <span>UTC · {clock.toISOString().slice(0, 10)}</span>
           <strong>{clockText}</strong>
@@ -784,8 +883,9 @@ export default function CargoConstellations() {
                   disabled={!available || layer.locked}
                   aria-pressed={enabled}
                   title={`${layer.description} Source: ${layer.source}`}
+                  style={{ "--layer-color": LAYER_GUIDE[layer.id]?.color ?? "#72E7D8" } as React.CSSProperties}
                 >
-                  <span className={`layer-state ${state}`} />
+                  <span className={`layer-state ${state}`}><span /></span>
                   <span className="layer-copy"><b>{layer.label}</b><small>{layer.source}</small></span>
                   <em>{state}</em>
                 </button>
@@ -854,6 +954,18 @@ export default function CargoConstellations() {
           <div className="truth-key"><span className="dotted-line" />Rendered motion</div>
         </section>
       </aside>
+
+      {layerMoment && LAYER_GUIDE[layerMoment.id] && (
+        <div className={`layer-moment ${layerMoment.enabled ? "revealed" : "concealed"}`} role="status">
+          <span className="layer-moment-swatch" style={{ "--moment-color": LAYER_GUIDE[layerMoment.id]?.color } as React.CSSProperties} />
+          <div>
+            <small>{layerMoment.enabled ? "LAYER REVEALED" : "LAYER CONCEALED"}</small>
+            <strong>{DATA_LAYERS.find((layer) => layer.id === layerMoment.id)?.label}</strong>
+            <p>{LAYER_GUIDE[layerMoment.id]?.cue}</p>
+          </div>
+          <button type="button" onClick={() => setLayerMoment(null)} aria-label="Dismiss layer explanation">×</button>
+        </div>
+      )}
 
       <div className="globe-controls">
         <button type="button" onClick={() => setAutoRotate((value) => !value)} aria-label={autoRotate ? "Pause globe rotation" : "Resume globe rotation"}>

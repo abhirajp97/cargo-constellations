@@ -6,6 +6,8 @@ The application runs in an explicitly labeled synthetic AIS mode by default. Syn
 
 The globe also includes real Natural Earth bathymetry, Eurostat-derived maritime routing, a computed solar terminator, chokepoints, live sampled NOAA GFS wind and marine conditions, daily NSIDC sea ice, current Panama Canal advisories, current-year IMB piracy reports, and monthly World Bank commodity benchmarks. Global Fishing Watch SAR detections activate when its free token is configured on the relay.
 
+The in-product Field Guide at `/wiki` documents the project's visual motivations, the path from radio message to rendered vessel, every layer's source and status, uncertainty boundaries, the Phase 6 roadmap, and a plain-language glossary. Sparse layers use stronger symbols, explicit reveal feedback, and regional camera guidance; optional generative ocean ambience advances the atmospheric direction without autoplaying sound.
+
 ## Local development
 
 ```bash
