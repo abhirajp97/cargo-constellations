@@ -86,7 +86,14 @@ const httpServer = createServer(async (request, response) => {
     response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
     response.end(JSON.stringify({
       ok: true,
-      upstream: upstream?.readyState === WebSocket.OPEN ? "connected" : "reconnecting",
+      upstream: upstreamSubscriptionError
+        ? "error"
+        : upstream?.readyState === WebSocket.OPEN ? "connected" : "reconnecting",
+      upstreamError: upstreamSubscriptionError,
+      upstreamFrames,
+      acceptedVesselFrames,
+      lastUpstreamFrameAt,
+      lastUpstreamMessageType,
       vessels: vessels.size,
       clients: downstream.clients.size,
       now: new Date().toISOString(),
@@ -116,6 +123,11 @@ let upstream: WebSocket | undefined;
 let reconnectAttempt = 0;
 let reconnectTimer: NodeJS.Timeout | undefined;
 let shuttingDown = false;
+let upstreamFrames = 0;
+let acceptedVesselFrames = 0;
+let lastUpstreamFrameAt: string | undefined;
+let lastUpstreamMessageType: string | undefined;
+let upstreamSubscriptionError: string | undefined;
 
 const subscription = {
   APIKey: apiKey,
@@ -125,7 +137,6 @@ const subscription = {
         [[0.85, 103.35], [1.55, 104.25]],
         [[49.8, -1.8], [52.3, 3.2]],
       ],
-  FilterMessageTypes: ["PositionReport", "StandardClassBPositionReport", "ExtendedClassBPositionReport", "ShipStaticData", "StaticDataReport"],
 };
 
 function publicVessel(vessel: Vessel): Vessel {
@@ -178,19 +189,30 @@ function connectUpstream() {
 
   upstream.on("open", () => {
     reconnectAttempt = 0;
+    upstreamSubscriptionError = undefined;
     upstream?.send(JSON.stringify(subscription));
     console.log(`AIS upstream connected · relay listening on ws://localhost:${downstreamPort}`);
   });
 
   upstream.on("message", (raw) => {
     try {
-      const envelope = JSON.parse(raw.toString()) as AisEnvelope;
+      const decoded = JSON.parse(raw.toString()) as AisEnvelope | { error?: unknown };
+      upstreamFrames += 1;
+      lastUpstreamFrameAt = new Date().toISOString();
+      if ("error" in decoded && typeof decoded.error === "string") {
+        upstreamSubscriptionError = decoded.error;
+        console.error(`AIS subscription rejected: ${decoded.error}`);
+        return;
+      }
+      const envelope = decoded as AisEnvelope;
+      lastUpstreamMessageType = envelope.MessageType;
       const payload = envelope.Message?.[envelope.MessageType];
       const mmsi = String(payload?.UserID ?? payload?.MMSI ?? envelope.MetaData?.MMSI ?? "");
       const merged = mergeAisEnvelope(vessels.get(mmsi), envelope, Date.now(), "live");
       if (!merged) return;
       vessels.set(merged.mmsi, merged);
       dirty.add(merged.mmsi);
+      acceptedVesselFrames += 1;
     } catch (error) {
       console.warn("Dropped malformed AIS frame", error instanceof Error ? error.message : error);
     }
