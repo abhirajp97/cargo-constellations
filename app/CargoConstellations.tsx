@@ -1043,6 +1043,7 @@ export default function CargoConstellations() {
           <p>Ports burn as fixed stars. Moving vessels leave received-fix trails; the light between fixes is dead-reckoned for no more than ten minutes.</p>
           <div className="truth-key"><span className="solid-line" />Received AIS</div>
           <div className="truth-key"><span className="dotted-line" />Rendered motion</div>
+          <small>Finnish AIS: Fintraffic / digitraffic.fi · CC BY 4.0</small>
         </section>
       </aside>
 

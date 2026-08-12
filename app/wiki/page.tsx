@@ -21,6 +21,7 @@ const glossary = [
 
 const sourceLinks = [
   ["AISStream", "Live terrestrial vessel messages", "https://aisstream.io/documentation.html"],
+  ["Fintraffic Digitraffic", "Live Finnish and Baltic AIS positions · CC BY 4.0", "https://www.digitraffic.fi/en/marine-traffic/"],
   ["Natural Earth", "Land and public map geometry", "https://www.naturalearthdata.com/"],
   ["Open-Meteo Marine", "Accessible marine model fields", "https://open-meteo.com/en/docs/marine-weather-api"],
   ["NSIDC Sea Ice Index", "Daily polar sea-ice concentration", "https://nsidc.org/data/seaice_index"],
@@ -71,7 +72,7 @@ export default function WikiPage() {
           <div className="signal-story" aria-label="How vessel data reaches the globe">
             <div><b>1</b><strong>A ship broadcasts</strong><p>Its radio sends an identity, position, speed, course, and occasional voyage details.</p></div>
             <i aria-hidden="true">→</i>
-            <div><b>2</b><strong>A receiver hears it</strong><p>Coastal stations collect messages within the radio horizon and AISStream combines them.</p></div>
+            <div><b>2</b><strong>A receiver hears it</strong><p>Coastal stations collect messages within the radio horizon. AISStream and Fintraffic publish the received signals.</p></div>
             <i aria-hidden="true">→</i>
             <div><b>3</b><strong>The relay remembers</strong><p>Separate position and vessel-detail messages are merged without exposing the provider key.</p></div>
             <i aria-hidden="true">→</i>

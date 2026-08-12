@@ -1,8 +1,13 @@
 import WebSocket, { WebSocketServer } from "ws";
+import mqtt, { type MqttClient } from "mqtt";
 import { createServer } from "node:http";
 import { mergeAisEnvelope, type AisEnvelope, type Vessel } from "../lib/ais.js";
 
 const upstreamUrl = "wss://stream.aisstream.io/v0/stream";
+const fintrafficMqttUrl = "wss://meri.digitraffic.fi:443/mqtt";
+const fintrafficLocationsUrl = "https://meri.digitraffic.fi/api/ais/v1/locations";
+const fintrafficVesselsUrl = "https://meri.digitraffic.fi/api/ais/v1/vessels";
+const fintrafficUserAgent = "cargo-constellations/0.1 (https://github.com/abhirajp97/cargo-constellations)";
 const apiKey = process.env.AISSTREAM_API_KEY;
 const gfwApiToken = process.env.GFW_API_TOKEN;
 const downstreamPort = Number(process.env.PORT ?? process.env.AIS_RELAY_PORT ?? 8787);
@@ -94,6 +99,11 @@ const httpServer = createServer(async (request, response) => {
       acceptedVesselFrames,
       lastUpstreamFrameAt,
       lastUpstreamMessageType,
+      fintraffic: fintrafficError ? "error" : fintrafficConnected ? "connected" : "reconnecting",
+      fintrafficError,
+      fintrafficFrames,
+      acceptedFintrafficFrames,
+      lastFintrafficFrameAt,
       vessels: vessels.size,
       clients: downstream.clients.size,
       now: new Date().toISOString(),
@@ -128,6 +138,12 @@ let acceptedVesselFrames = 0;
 let lastUpstreamFrameAt: string | undefined;
 let lastUpstreamMessageType: string | undefined;
 let upstreamSubscriptionError: string | undefined;
+let fintraffic: MqttClient | undefined;
+let fintrafficConnected = false;
+let fintrafficFrames = 0;
+let acceptedFintrafficFrames = 0;
+let lastFintrafficFrameAt: string | undefined;
+let fintrafficError: string | undefined;
 
 const subscription = {
   APIKey: apiKey,
@@ -144,6 +160,121 @@ function publicVessel(vessel: Vessel): Vessel {
 }
 
 type LiveClient = WebSocket & { isAlive?: boolean };
+
+function fintrafficPositionEnvelope(mmsi: string, position: Record<string, unknown>): AisEnvelope {
+  return {
+    MessageType: "PositionReport",
+    MetaData: { MMSI: mmsi, Provider: "Fintraffic / digitraffic.fi" },
+    Message: { PositionReport: {
+      UserID: mmsi,
+      Latitude: position.lat,
+      Longitude: position.lon,
+      Sog: position.sog,
+      Cog: position.cog,
+      TrueHeading: position.heading,
+      NavigationalStatus: position.navStat,
+      Timestamp: position.time ?? position.timestampExternal,
+    } },
+  };
+}
+
+function fintrafficMetadataEnvelope(mmsi: string, metadata: Record<string, unknown>): AisEnvelope {
+  return {
+    MessageType: "ShipStaticData",
+    MetaData: { MMSI: mmsi, Provider: "Fintraffic / digitraffic.fi" },
+    Message: { ShipStaticData: {
+      UserID: mmsi,
+      ImoNumber: metadata.imo,
+      Name: metadata.name,
+      CallSign: metadata.callSign,
+      Type: metadata.type ?? metadata.shipType,
+      Destination: metadata.destination,
+      MaximumStaticDraught: metadata.draught,
+      Dimension: {
+        A: metadata.refA ?? metadata.referencePointA,
+        B: metadata.refB ?? metadata.referencePointB,
+        C: metadata.refC ?? metadata.referencePointC,
+        D: metadata.refD ?? metadata.referencePointD,
+      },
+    } },
+  };
+}
+
+function mergeEnvelope(envelope: AisEnvelope, provider: "aisstream" | "fintraffic", receivedAt = Date.now()) {
+  const payload = envelope.Message?.[envelope.MessageType];
+  const mmsi = String(payload?.UserID ?? payload?.MMSI ?? envelope.MetaData?.MMSI ?? "");
+  const merged = mergeAisEnvelope(vessels.get(mmsi), envelope, receivedAt, "live");
+  if (!merged) return;
+  vessels.set(merged.mmsi, merged);
+  dirty.add(merged.mmsi);
+  if (provider === "aisstream") acceptedVesselFrames += 1;
+  else acceptedFintrafficFrames += 1;
+}
+
+async function seedFintraffic() {
+  const headers = { "Digitraffic-User": fintrafficUserAgent };
+  const [positionResponse, metadataResponse] = await Promise.all([
+    fetch(fintrafficLocationsUrl, { headers }),
+    fetch(fintrafficVesselsUrl, { headers }),
+  ]);
+  if (!positionResponse.ok || !metadataResponse.ok) {
+    throw new Error(`snapshot failed (${positionResponse.status}/${metadataResponse.status})`);
+  }
+  const positions = await positionResponse.json() as {
+    features?: Array<{ mmsi?: number | string; geometry?: { coordinates?: [number, number] }; properties?: Record<string, unknown> }>;
+  };
+  const metadata = await metadataResponse.json() as Array<Record<string, unknown>>;
+  for (const item of metadata) {
+    const mmsi = String(item.mmsi ?? "");
+    mergeEnvelope(fintrafficMetadataEnvelope(mmsi, item), "fintraffic");
+  }
+  for (const feature of positions.features ?? []) {
+    const mmsi = String(feature.mmsi ?? feature.properties?.mmsi ?? "");
+    const [lon, lat] = feature.geometry?.coordinates ?? [];
+    const receivedAt = Number(feature.properties?.timestampExternal) || Date.now();
+    mergeEnvelope(fintrafficPositionEnvelope(mmsi, { ...feature.properties, lat, lon }), "fintraffic", receivedAt);
+  }
+  lastFintrafficFrameAt = new Date().toISOString();
+  console.log(`Fintraffic seeded ${positions.features?.length ?? 0} vessel positions`);
+}
+
+function connectFintraffic() {
+  fintraffic = mqtt.connect(fintrafficMqttUrl, {
+    clientId: `cargo-constellations-${Math.random().toString(16).slice(2)}`,
+    reconnectPeriod: 5_000,
+    connectTimeout: 15_000,
+  });
+  fintraffic.on("connect", () => {
+    fintrafficConnected = true;
+    fintrafficError = undefined;
+    fintraffic?.subscribe("vessels-v2/+/+", (error) => {
+      if (error) fintrafficError = error.message;
+      else console.log("Fintraffic live AIS connected");
+    });
+  });
+  fintraffic.on("message", (topic, raw) => {
+    try {
+      const [, mmsi, kind] = topic.split("/");
+      const payload = JSON.parse(raw.toString()) as Record<string, unknown>;
+      fintrafficFrames += 1;
+      lastFintrafficFrameAt = new Date().toISOString();
+      if (kind === "location") {
+        const receivedAt = Number(payload.time) * 1000 || Date.now();
+        mergeEnvelope(fintrafficPositionEnvelope(mmsi, payload), "fintraffic", receivedAt);
+      }
+      if (kind === "metadata") mergeEnvelope(fintrafficMetadataEnvelope(mmsi, payload), "fintraffic");
+    } catch (error) {
+      console.warn("Dropped malformed Fintraffic frame", error instanceof Error ? error.message : error);
+    }
+  });
+  fintraffic.on("reconnect", () => { fintrafficConnected = false; });
+  fintraffic.on("close", () => { fintrafficConnected = false; });
+  fintraffic.on("error", (error) => {
+    fintrafficConnected = false;
+    fintrafficError = error.message;
+    console.warn("Fintraffic AIS error", error.message);
+  });
+}
 
 downstream.on("connection", (client: LiveClient) => {
   client.isAlive = true;
@@ -206,13 +337,7 @@ function connectUpstream() {
       }
       const envelope = decoded as AisEnvelope;
       lastUpstreamMessageType = envelope.MessageType;
-      const payload = envelope.Message?.[envelope.MessageType];
-      const mmsi = String(payload?.UserID ?? payload?.MMSI ?? envelope.MetaData?.MMSI ?? "");
-      const merged = mergeAisEnvelope(vessels.get(mmsi), envelope, Date.now(), "live");
-      if (!merged) return;
-      vessels.set(merged.mmsi, merged);
-      dirty.add(merged.mmsi);
-      acceptedVesselFrames += 1;
+      mergeEnvelope(envelope, "aisstream");
     } catch (error) {
       console.warn("Dropped malformed AIS frame", error instanceof Error ? error.message : error);
     }
@@ -240,6 +365,7 @@ function shutdown() {
   clearInterval(pruneTimer);
   clearInterval(heartbeatTimer);
   upstream?.close();
+  fintraffic?.end(true);
   downstream.close();
   httpServer.close(() => process.exit(0));
 }
@@ -250,3 +376,8 @@ httpServer.listen(downstreamPort, "0.0.0.0", () => {
   console.log(`AIS relay listening on http://0.0.0.0:${downstreamPort}`);
 });
 connectUpstream();
+seedFintraffic().catch((error) => {
+  fintrafficError = error instanceof Error ? error.message : "snapshot unavailable";
+  console.warn("Fintraffic seed error", fintrafficError);
+});
+connectFintraffic();
