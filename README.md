@@ -1,0 +1,29 @@
+# Cargo Constellations
+
+An atmospheric globe of global shipping: ports as stars, vessels as points of light, and received AIS fixes as bioluminescent wakes.
+
+The application runs in an explicitly labeled synthetic AIS mode by default. Synthetic messages use the same envelope decoder and vessel store as the live pipeline, so switching sources does not change the rendering model.
+
+## Local development
+
+```bash
+npm install
+npm run dev
+```
+
+## Live AIS
+
+1. Get a free key from [aisstream.io](https://aisstream.io).
+2. Copy `.env.example` to `.env` and add the key.
+3. Run `npm run ingest` in one terminal.
+4. Run `npm run dev` in another.
+
+The browser connects only to the local relay. The aisstream API key never enters client-side JavaScript. The relay begins with Singapore and Dover Strait bounding boxes; set `AIS_FULL_GLOBE=true` only after validating the pipeline.
+
+## Truth boundary
+
+- `lastFix` is received ground truth.
+- `renderedPosition` is a separate, smoothly reconciled display coordinate.
+- Dead reckoning stops after ten minutes; stale vessels fade and are pruned after an hour.
+- Destination, draught, and ETA are treated as reported fields, not guaranteed facts.
+- Demonstration values are visibly labeled synthetic throughout the interface.
