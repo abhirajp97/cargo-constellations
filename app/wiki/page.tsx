@@ -4,7 +4,7 @@ import Link from "next/link";
 const principles = [
   ["Wonder before analysis", "The first job is to make the recent memory of ocean trade feel worth lingering over. The second is to help explain it."],
   ["Truth before spectacle", "A received position, a model estimate, and a demonstration value must never masquerade as the same kind of fact."],
-  ["Time is part of truth", "The primary voyage view is delayed by about four days and currently limited to a named pilot corridor. Optional live regional radio must never look like global coverage."],
+  ["Time is part of truth", "The primary voyage view is delayed by about four days and assembled from named ocean corridors. Optional live regional radio must never look like global coverage."],
   ["Quiet tools", "Prices and operational signals live beside the globe. They should add meaning without turning the world into a trading terminal."],
 ];
 
@@ -55,7 +55,7 @@ export default function WikiPage() {
         <section className="wiki-hero" id="purpose">
           <p className="wiki-kicker">FIELD GUIDE · VOLUME 01</p>
           <h1>A world of trade,<br /><em>made legible.</em></h1>
-          <p className="wiki-deck">Cargo Constellations is an atmospheric globe of the recent memory of ocean trade. Its primary pilot joins identity-preserving cargo-vessel observations from approximately four days ago across Singapore and the Malacca Strait, surrounded by optional live, environmental, risk, and commodity context. This guide explains what you are seeing, where it comes from, and where uncertainty begins.</p>
+          <p className="wiki-deck">Cargo Constellations is an atmospheric globe of the recent memory of ocean trade. Its primary view joins six days of identity-preserving cargo-vessel observations from approximately four days ago across five major shipping corridors, surrounded by optional live, environmental, risk, and commodity context. This guide explains what you are seeing, where it comes from, and where uncertainty begins.</p>
           <div className="wiki-hero-note">
             <span>THE CENTRAL PROMISE</span>
             <p>Every number is real, derived from a named observation, or visibly marked as demonstration data. Beauty should invite curiosity—not hide the limits of the evidence.</p>
@@ -117,7 +117,7 @@ export default function WikiPage() {
               <li>Radar detections unmatched to AIS are interesting, but they do not prove a vessel deliberately went dark.</li>
               <li>Weather and ocean fields are models sampled across large areas; they are not readings from each ship.</li>
               <li>AIS destinations are manually entered free text. A resolved port and great-circle path are interpretive context, not a captain&apos;s filed route.</li>
-              <li>Gold delayed voyages join hourly grid cells for the same vessel. They show observed order, not the exact path between hours, and the current pilot covers only Singapore and the Malacca Strait.</li>
+              <li>Colored delayed voyages join hourly grid cells for the same vessel. They show observed order, not the exact path between hours, and cover five bounded shipping corridors rather than every ocean cell.</li>
               <li>The optional Global Fishing Watch world wake is a low-resolution aggregate presence heatmap. It cannot identify or trace an individual ship.</li>
               <li>Public commodity benchmarks are monthly context. They are not live quotes or trading advice.</li>
             </ul>
@@ -127,8 +127,8 @@ export default function WikiPage() {
         <section className="wiki-section" aria-labelledby="roadmap-title">
           <div className="wiki-section-title"><span>05</span><div><p>THE WORLD AHEAD</p><h2 id="roadmap-title">From wonder layer to quiet instrument</h2></div></div>
           <div className="roadmap-river">
-            <div><span>NOW</span><h3>Remember</h3><p>Identity-preserving, four-day-delayed cargo voyages across the Singapore–Malacca pilot corridor are primary, with optional Nordic live traffic and contextual layers.</p></div>
-            <div><span>NEXT</span><h3>Understand</h3><p>Expand the same delayed method across major corridors, persist voyage history, connect port calls, and improve cautious commodity inference.</p></div>
+            <div><span>NOW</span><h3>Remember</h3><p>Six-day, identity-preserving cargo histories across five major corridors are primary, with optional Nordic live traffic and contextual layers.</p></div>
+            <div><span>NEXT</span><h3>Understand</h3><p>Persist successive corridor windows into longer voyage histories, connect port calls, and improve cautious commodity inference.</p></div>
             <div><span>LATER</span><h3>Act carefully</h3><p>Freight context, ETA reliability, and procurement timing—always separated from the contemplative globe.</p></div>
           </div>
           <p className="roadmap-note">This is the bridge to the build specification’s action layer: analytics should grow from an honest data model without remaking the world as a conventional dashboard.</p>

@@ -20,6 +20,35 @@ test("GFW voyage probe requires twenty vessels with six moving ordered points", 
   assert.equal(summary.candidates[0].points.length, 6);
 });
 
+test("ranks long multi-day voyages and rejects impossible grid jumps", () => {
+  const rows = Array.from({ length: 24 }, (_, hour) => ({
+    vesselId: "long-haul",
+    date: `2026-08-${String(1 + Math.floor(hour / 6)).padStart(2, "0")} ${String((hour % 6) * 4).padStart(2, "0")}:00`,
+    lat: 5 + hour * 0.08,
+    lon: 60 + hour * 0.8,
+  }));
+  rows.splice(12, 0, {
+    vesselId: "long-haul",
+    date: "2026-08-03 00:00",
+    lat: 70,
+    lon: -140,
+  });
+
+  const summary = summarizeGfwVoyageProbe(rows, {
+    minimumVessels: 1,
+    minimumOrderedPoints: 18,
+    minimumDistanceNm: 500,
+    maximumSpeedKn: 48,
+    rankBy: "distance",
+  });
+
+  assert.equal(summary.verdict, "pass");
+  assert.equal(summary.candidates.length, 1);
+  assert.equal(summary.candidates[0].points.length, 24);
+  assert.ok(summary.candidates[0].distanceNm > 1_000);
+  assert.ok(summary.candidates[0].points.every((point) => point.lat < 10));
+});
+
 test("stationary heatmap cells do not qualify as voyages", () => {
   const rows = Array.from({ length: 24 }, (_, hour) => ({
     vesselId: "stationary",

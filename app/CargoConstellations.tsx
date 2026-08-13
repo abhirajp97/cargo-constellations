@@ -47,6 +47,13 @@ const FILTERS: Commodity[] = ["container", "dry-bulk", "tanker", "general"];
 const EMPTY_COUNTS: Record<Commodity, number> = { container: 0, "dry-bulk": 0, tanker: 0, general: 0, unknown: 0 };
 const DEFAULT_AIS_WEBSOCKET_URL = "wss://cargo-constellations-ais-relay.onrender.com";
 const AIS_WEBSOCKET_URL = process.env.NEXT_PUBLIC_AIS_WEBSOCKET_URL || DEFAULT_AIS_WEBSOCKET_URL;
+const CORRIDOR_COLORS: Record<string, string> = {
+  "north-atlantic": "#8EC5E8",
+  "suez-arabian": "#F3D28A",
+  "indian-malacca": "#E8A66D",
+  "east-asia": "#C99BE8",
+  "panama-pacific": "#82D4B5",
+};
 
 const LAYER_GUIDE: Partial<Record<LayerId, { color: string; cue: string; focus?: [number, number] }>> = {
   "delayed-voyages": { color: "#F3D28A", cue: "Gold constellations join ordered hourly cargo-vessel observations from four days ago.", focus: [-103, -2] },
@@ -195,12 +202,12 @@ export default function CargoConstellations() {
   const shellRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const storeRef = useRef(new Map<string, Vessel>());
-  const rotationRef = useRef<[number, number]>([-103, -2]);
+  const rotationRef = useRef<[number, number]>([-25, -8]);
   const draggingRef = useRef(false);
   const movedRef = useRef(false);
   const pointerRef = useRef<[number, number]>([0, 0]);
   const autoRotateRef = useRef(false);
-  const zoomRef = useRef(2.4);
+  const zoomRef = useRef(0.92);
   const hitRef = useRef<Array<{ mmsi: string; x: number; y: number }>>([]);
   const filterRef = useRef(new Set<Commodity>(FILTERS));
   const layerRef = useRef(defaultLayerSet());
@@ -212,6 +219,7 @@ export default function CargoConstellations() {
   const sarRef = useRef<SarSnapshot | null>(null);
   const worldWakeRef = useRef<WorldWakeSnapshot | null>(null);
   const delayedVoyagePilotRef = useRef<DelayedVoyagePilot | null>(null);
+  const activeCorridorRef = useRef("all");
   const portCongestionRef = useRef(new Map<string, number>());
   const audioRef = useRef<{ context: AudioContext; sources: AudioScheduledSourceNode[] } | null>(null);
   const lastDrawRef = useRef(0);
@@ -235,6 +243,7 @@ export default function CargoConstellations() {
   const [worldWake, setWorldWake] = useState<WorldWakeSnapshot | null>(null);
   const [delayedVoyageStatus, setDelayedVoyageStatus] = useState<"key" | "loading" | "live" | "offline">(wsUrl ? "loading" : "key");
   const [delayedVoyagePilot, setDelayedVoyagePilot] = useState<DelayedVoyagePilot | null>(null);
+  const [activeCorridor, setActiveCorridor] = useState("all");
   const [soundOn, setSoundOn] = useState(false);
   const [layerMoment, setLayerMoment] = useState<{ id: LayerId; enabled: boolean } | null>(null);
   const [stats, setStats] = useState({ vessels: 0, moving: 0, laden: 0, anchors: 0, gaps: 0, fintraffic: 0, kystverket: 0, counts: EMPTY_COUNTS });
@@ -246,6 +255,7 @@ export default function CargoConstellations() {
   useEffect(() => { autoRotateRef.current = autoRotate; }, [autoRotate]);
   useEffect(() => { filterRef.current = filters; }, [filters]);
   useEffect(() => { layerRef.current = layers; }, [layers]);
+  useEffect(() => { activeCorridorRef.current = activeCorridor; }, [activeCorridor]);
 
   useEffect(() => {
     if (!soundOn) {
@@ -884,7 +894,9 @@ export default function CargoConstellations() {
         context.globalCompositeOperation = "source-over";
         context.lineCap = "round";
         context.lineJoin = "round";
-        for (const voyage of delayedVoyagePilotRef.current.candidates) {
+        const visibleVoyages = delayedVoyagePilotRef.current.candidates.filter((voyage) => activeCorridorRef.current === "all" || voyage.corridorId === activeCorridorRef.current);
+        const longestDistance = visibleVoyages[0]?.distanceNm || 1;
+        for (const voyage of visibleVoyages) {
           context.beginPath();
           let drawing = false;
           for (const fix of voyage.points) {
@@ -895,13 +907,18 @@ export default function CargoConstellations() {
             if (drawing) context.lineTo(point[0], point[1]); else context.moveTo(point[0], point[1]);
             drawing = true;
           }
-          context.strokeStyle = "rgba(243, 210, 138, .2)";
-          context.lineWidth = 1.1;
+          const corridorColor = CORRIDOR_COLORS[voyage.corridorId ?? ""] ?? COLORS.container;
+          const prominence = Math.min(1, voyage.distanceNm / longestDistance);
+          context.strokeStyle = "rgba(4, 11, 23, .62)";
+          context.lineWidth = 2.6;
+          context.stroke();
+          context.strokeStyle = rgba(corridorColor, 0.2 + prominence * 0.36);
+          context.lineWidth = 0.85 + prominence * 0.75;
           context.stroke();
           const last = voyage.points.at(-1);
           if (last && visible([last.lon, last.lat])) {
             const point = projection([last.lon, last.lat]);
-            if (point) context.drawImage(sprites.container, point[0] - 4, point[1] - 4, 8, 8);
+            if (point && prominence > 0.45) context.drawImage(sprites.container, point[0] - 3, point[1] - 3, 6, 6);
           }
         }
         context.restore();
@@ -1246,16 +1263,41 @@ export default function CargoConstellations() {
       )}
 
       <div className="map-verse" aria-hidden="true">
-        <span>FIELD I · FOUR DAYS AGO</span>
-        <p>Each gold constellation<br />belongs to one cargo ship.</p>
+        <span>FIELD I · SIX DAYS REMEMBERED</span>
+        <p>Long passages emerge<br />from a chain of hourly stars.</p>
       </div>
 
       <aside className="data-rail">
         <section className="rail-section overview">
-          <p className="eyebrow">DELAYED VOYAGE PILOT</p>
+          <p className="eyebrow">MULTI-CORRIDOR VOYAGES</p>
           <div className="primary-stat"><strong>{delayedVoyagePilot?.candidates.length.toLocaleString() ?? "···"}</strong><span>identified cargo vessels shown</span></div>
-          <p className="wake-date">{delayedVoyagePilot ? <><strong>{delayedVoyagePilot.dateRange}</strong> · Singapore + Malacca Strait</> : "Gathering identity-preserving observations"}</p>
-          <p className="coverage-explainer">Each gold line joins hourly gridded AIS observations for one identified vessel in time order. The view is delayed about four days; it is neither raw live AIS nor an inferred route.</p>
+          <p className="wake-date">{delayedVoyagePilot ? <><strong>{delayedVoyagePilot.dateRange}</strong> · {delayedVoyagePilot.corridors.filter((corridor) => corridor.status === "live").length} major corridors</> : "Gathering identity-preserving observations"}</p>
+          <p className="coverage-explainer">Each colored line joins six days of hourly gridded AIS observations for one identified vessel. The view is delayed about four days; the space between observations is not an exact sailed track.</p>
+          {delayedVoyagePilot && (
+            <div className="corridor-switcher" aria-label="Voyage corridor focus">
+              <button
+                type="button"
+                className={activeCorridor === "all" ? "active" : ""}
+                onClick={() => {
+                  setActiveCorridor("all");
+                  rotationRef.current = [-25, -8];
+                  zoomRef.current = 0.92;
+                }}
+              ><i style={{ background: "linear-gradient(90deg, #8EC5E8, #F3D28A, #C99BE8)" }} />All oceans <b>{delayedVoyagePilot.candidates.length}</b></button>
+              {delayedVoyagePilot.corridors.filter((corridor) => corridor.status === "live" && corridor.shown > 0).map((corridor) => (
+                <button
+                  type="button"
+                  key={corridor.id}
+                  className={activeCorridor === corridor.id ? "active" : ""}
+                  onClick={() => {
+                    setActiveCorridor(corridor.id);
+                    rotationRef.current = [-corridor.focus[0], -corridor.focus[1]];
+                    zoomRef.current = 1.35;
+                  }}
+                ><i style={{ background: CORRIDOR_COLORS[corridor.id] ?? COLORS.container }} />{corridor.label} <b>{corridor.shown}</b></button>
+              ))}
+            </div>
+          )}
           {layers.has("live-vessels") && (
             <div className="live-sample-summary">
               <span>RECEIVER COVERAGE</span>
@@ -1333,8 +1375,8 @@ export default function CargoConstellations() {
               {layers.has("delayed-voyages") && delayedVoyagePilot && (
                 <div className="intel-readout voyage-readout">
                   <span>IDENTITY-PRESERVING PILOT</span>
-                  <strong>{delayedVoyagePilot.qualifyingVessels.toLocaleString()} qualifying voyages</strong>
-                  <small>{delayedVoyagePilot.rows.toLocaleString()} hourly cells · {delayedVoyagePilot.identifiedVessels.toLocaleString()} vessel IDs · showing {delayedVoyagePilot.candidates.length.toLocaleString()}</small>
+                  <strong>{delayedVoyagePilot.qualifyingVessels.toLocaleString()} long voyages qualify</strong>
+                  <small>{delayedVoyagePilot.rows.toLocaleString()} hourly cells · {delayedVoyagePilot.identifiedVessels.toLocaleString()} corridor vessel IDs · showing {delayedVoyagePilot.candidates.length.toLocaleString()}</small>
                 </div>
               )}
               {layers.has("sea-ice") && intelligence && (

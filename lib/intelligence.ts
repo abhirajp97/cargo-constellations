@@ -97,8 +97,22 @@ export type DelayedVoyage = {
   imo?: string;
   name?: string;
   vesselType?: string;
+  corridorId?: string;
+  corridorLabel?: string;
   points: DelayedVoyagePoint[];
   distanceNm: number;
+};
+
+export type DelayedVoyageCorridor = {
+  id: string;
+  label: string;
+  focus: [number, number];
+  rows: number;
+  identifiedVessels: number;
+  qualifyingVessels: number;
+  shown: number;
+  status: "live" | "error";
+  error?: string;
 };
 
 export type DelayedVoyagePilot = {
@@ -107,6 +121,8 @@ export type DelayedVoyagePilot = {
   region: string;
   source: string;
   caveat: string;
+  windowDays: number;
+  corridors: DelayedVoyageCorridor[];
   verdict: "pass" | "fail";
   rows: number;
   identifiedVessels: number;

@@ -32,7 +32,58 @@ type GfwVoyageProbe = GfwProbeSummary & {
   region: string;
   source: string;
   caveat: string;
+  windowDays: number;
+  corridors: GfwVoyageCorridor[];
 };
+type GfwVoyageCorridor = {
+  id: string;
+  label: string;
+  focus: [number, number];
+  rows: number;
+  identifiedVessels: number;
+  qualifyingVessels: number;
+  shown: number;
+  status: "live" | "error";
+  error?: string;
+};
+type GfwVoyageCorridorSpec = {
+  id: string;
+  label: string;
+  focus: [number, number];
+  coordinates: Array<[number, number]>;
+};
+const gfwVoyageCorridors: GfwVoyageCorridorSpec[] = [
+  {
+    id: "north-atlantic",
+    label: "North Atlantic",
+    focus: [-35, 43],
+    coordinates: [[-78, 27], [-55, 35], [-25, 44], [12, 54], [12, 65], [-25, 61], [-58, 49], [-78, 42], [-78, 27]],
+  },
+  {
+    id: "suez-arabian",
+    label: "Europe · Suez · Arabian Sea",
+    focus: [31, 24],
+    coordinates: [[-12, 43], [0, 46], [20, 44], [36, 34], [48, 18], [76, 19], [76, 4], [48, 7], [35, 12], [27, 29], [10, 33], [-12, 30], [-12, 43]],
+  },
+  {
+    id: "indian-malacca",
+    label: "Indian Ocean · Malacca",
+    focus: [72, 4],
+    coordinates: [[35, 12], [55, 22], [80, 17], [108, 10], [108, -7], [80, -12], [52, -10], [35, -20], [35, 12]],
+  },
+  {
+    id: "east-asia",
+    label: "South China Sea · Japan",
+    focus: [125, 21],
+    coordinates: [[98, 10], [122, 32], [142, 47], [150, 45], [150, 25], [132, 15], [112, -5], [98, -8], [98, 10]],
+  },
+  {
+    id: "panama-pacific",
+    label: "Panama · Pacific approaches",
+    focus: [-96, 11],
+    coordinates: [[-130, 25], [-105, 28], [-80, 16], [-63, 20], [-63, -2], [-82, -10], [-110, 2], [-130, 8], [-130, 25]],
+  },
+];
 let gfwVoyageProbeCache: { expiresAt: number; result: GfwVoyageProbe } | undefined;
 const worldWakeTileCache = new Map<string, { expiresAt: number; contentType: string; data: Buffer }>();
 let gfwReportQueue: Promise<void> = Promise.resolve();
@@ -118,36 +169,89 @@ async function fetchGfwVoyageProbe(): Promise<GfwVoyageProbe> {
   return queueGfwReport(async () => {
     if (gfwVoyageProbeCache && gfwVoyageProbeCache.expiresAt > Date.now()) return gfwVoyageProbeCache.result;
     const end = new Date(Date.now() - 4 * 86_400_000);
-    const start = new Date(end.getTime() - 86_400_000);
+    const windowDays = 6;
+    const start = new Date(end.getTime() - windowDays * 86_400_000);
     const dateRange = `${isoDate(start)},${isoDate(end)}`;
-    const url = new URL("https://gateway.api.globalfishingwatch.org/v3/4wings/report");
-    url.searchParams.set("spatial-resolution", "HIGH");
-    url.searchParams.set("temporal-resolution", "HOURLY");
-    url.searchParams.set("spatial-aggregation", "false");
-    url.searchParams.set("group-by", "VESSEL_ID");
-    url.searchParams.set("datasets[0]", "public-global-presence:latest");
-    url.searchParams.set("filters[0]", 'vessel_type in ("cargo","carrier")');
-    url.searchParams.set("date-range", dateRange);
-    url.searchParams.set("format", "JSON");
-    const source = await fetch(url, {
-      method: "POST",
-      headers: { authorization: `Bearer ${gfwApiToken}`, "content-type": "application/json" },
-      body: JSON.stringify({
-        geojson: {
-          type: "Polygon",
-          coordinates: [[[99, 0], [105, 0], [105, 7], [99, 7], [99, 0]]],
-        },
-      }),
-    });
-    const report = await readGfwReport(source);
-    const rows = (report.entries ?? []).flatMap((entry) => Object.values(entry).flat()) as GfwPresenceRow[];
+    const corridors: GfwVoyageCorridor[] = [];
+    const candidates: GfwProbeSummary["candidates"] = [];
+    let rows = 0;
+    let identifiedVessels = 0;
+    let qualifyingVessels = 0;
+
+    for (const corridor of gfwVoyageCorridors) {
+      try {
+        const url = new URL("https://gateway.api.globalfishingwatch.org/v3/4wings/report");
+        url.searchParams.set("spatial-resolution", "LOW");
+        url.searchParams.set("temporal-resolution", "HOURLY");
+        url.searchParams.set("spatial-aggregation", "false");
+        url.searchParams.set("group-by", "VESSEL_ID");
+        url.searchParams.set("datasets[0]", "public-global-presence:latest");
+        url.searchParams.set("filters[0]", 'vessel_type in ("cargo","carrier")');
+        url.searchParams.set("date-range", dateRange);
+        url.searchParams.set("format", "JSON");
+        const source = await fetch(url, {
+          method: "POST",
+          headers: { authorization: `Bearer ${gfwApiToken}`, "content-type": "application/json" },
+          body: JSON.stringify({ geojson: { type: "Polygon", coordinates: [corridor.coordinates] } }),
+        });
+        const report = await readGfwReport(source);
+        const corridorRows = (report.entries ?? []).flatMap((entry) => Object.values(entry).flat()) as GfwPresenceRow[];
+        const summary = summarizeGfwVoyageProbe(corridorRows, {
+          minimumVessels: 5,
+          minimumOrderedPoints: 18,
+          minimumDistanceNm: 180,
+          maximumSpeedKn: 48,
+          limit: 36,
+          rankBy: "distance",
+        });
+        rows += summary.rows;
+        identifiedVessels += summary.identifiedVessels;
+        qualifyingVessels += summary.qualifyingVessels;
+        candidates.push(...summary.candidates.map((candidate) => ({ ...candidate, corridorId: corridor.id, corridorLabel: corridor.label })));
+        corridors.push({
+          id: corridor.id,
+          label: corridor.label,
+          focus: corridor.focus,
+          rows: summary.rows,
+          identifiedVessels: summary.identifiedVessels,
+          qualifyingVessels: summary.qualifyingVessels,
+          shown: summary.candidates.length,
+          status: "live",
+        });
+      } catch (error) {
+        corridors.push({
+          id: corridor.id,
+          label: corridor.label,
+          focus: corridor.focus,
+          rows: 0,
+          identifiedVessels: 0,
+          qualifyingVessels: 0,
+          shown: 0,
+          status: "error",
+          error: error instanceof Error ? error.message : "Corridor report unavailable",
+        });
+      }
+    }
+
+    const rankedCandidates = candidates.sort((a, b) => b.distanceNm - a.distanceNm || b.points.length - a.points.length).slice(0, 180);
+    if (rankedCandidates.length === 0) throw new Error("No corridor voyage reports completed successfully");
+    const minimumVessels = 20;
+    const minimumOrderedPoints = 18;
+    const minimumDistanceNm = 180;
     const result: GfwVoyageProbe = {
       observedAt: new Date().toISOString(),
       dateRange,
-      region: "Singapore and the Malacca Strait · 99–105°E, 0–7°N",
+      region: "Five major shipping corridors",
       source: "Global Fishing Watch · public-global-presence:latest",
-      caveat: "Hourly gridded AIS presence, not raw AIS. A pass only establishes that vessel identity and ordering survive this bounded report.",
-      ...summarizeGfwVoyageProbe(rows),
+      caveat: "Six days of hourly gridded AIS presence, not raw AIS. Lines connect observations for the same vessel; gaps between hourly cells are not exact sailed tracks.",
+      windowDays,
+      corridors,
+      verdict: rankedCandidates.length >= minimumVessels && corridors.filter((corridor) => corridor.status === "live").length >= 3 ? "pass" : "fail",
+      criteria: { minimumVessels, minimumOrderedPoints, minimumDistanceNm },
+      rows,
+      identifiedVessels,
+      qualifyingVessels,
+      candidates: rankedCandidates,
     };
     gfwVoyageProbeCache = { expiresAt: Date.now() + 12 * 60 * 60 * 1000, result };
     return result;

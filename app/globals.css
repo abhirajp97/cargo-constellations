@@ -381,6 +381,11 @@ button { color: inherit; }
 .live-sample-summary span { color: #a5885b; font: 600 7px var(--font-geist-mono), monospace; letter-spacing: .14em; }
 .live-sample-summary strong { color: #e0c99d; font: 400 16px "Iowan Old Style", Georgia, serif; }
 .live-sample-summary small { color: #8f8678; font: 500 7px var(--font-geist-mono), monospace; }
+.corridor-switcher { display: grid; gap: 3px; margin-top: 16px; }
+.corridor-switcher button { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 31px; padding: 6px 8px; border: 0; border-left: 1px solid rgba(227,181,102,.12); background: rgba(8,19,33,.22); color: #9d9587; font: 500 7px/1.25 var(--font-geist-mono), monospace; text-align: left; cursor: pointer; }
+.corridor-switcher button:hover, .corridor-switcher button.active { border-left-color: rgba(238,207,148,.65); background: linear-gradient(90deg, rgba(227,181,102,.12), transparent); color: #e2cfaa; }
+.corridor-switcher i { width: 11px; height: 3px; border-radius: 3px; box-shadow: 0 0 8px currentColor; }
+.corridor-switcher b { color: #bca77e; font-weight: 600; }
 .coverage-readout { display: flex; align-items: center; gap: 6px; margin: 12px 0 0; color: #8f8678; font: 500 7px/1.4 var(--font-geist-mono), monospace; letter-spacing: .04em; }
 .coverage-readout span { color: #d9bd85; font-size: 9px; }
 .coverage-readout i { width: 9px; height: 1px; background: rgba(227,181,102,.32); }
