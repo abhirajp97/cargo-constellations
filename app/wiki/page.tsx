@@ -4,7 +4,7 @@ import Link from "next/link";
 const principles = [
   ["Wonder before analysis", "The first job is to make the recent memory of ocean trade feel worth lingering over. The second is to help explain it."],
   ["Truth before spectacle", "A received position, a model estimate, and a demonstration value must never masquerade as the same kind of fact."],
-  ["Time is part of truth", "The four-day-delayed global field is the primary world. Optional live regional radio remains useful, but it must never look like global coverage."],
+  ["Time is part of truth", "The primary voyage view is delayed by about four days and currently limited to a named pilot corridor. Optional live regional radio must never look like global coverage."],
   ["Quiet tools", "Prices and operational signals live beside the globe. They should add meaning without turning the world into a trading terminal."],
 ];
 
@@ -19,6 +19,7 @@ const glossary = [
   ["Chokepoint", "A narrow passage—such as a canal or strait—through which a large share of trade must pass."],
   ["Listening waters", "The geographic reach of the receiver networks currently feeding this world. It is coverage, not a claim that every ship inside it will be heard."],
   ["Inferred voyage", "A pale interpretive path from the last received position toward a confidently resolved AIS destination. It is not a filed route or navigation advice."],
+  ["Delayed voyage", "A gold path joining hourly gridded AIS observations that retain the same vessel identity. It shows observed movement, but it is coarser and later than raw AIS."],
   ["World wake", "A low-resolution field of cargo-vessel presence observed by Global Fishing Watch about four days earlier. It is historical density, not a set of live vessel positions."],
 ];
 
@@ -54,7 +55,7 @@ export default function WikiPage() {
         <section className="wiki-hero" id="purpose">
           <p className="wiki-kicker">FIELD GUIDE · VOLUME 01</p>
           <h1>A world of trade,<br /><em>made legible.</em></h1>
-          <p className="wiki-deck">Cargo Constellations is an atmospheric globe of the recent memory of ocean trade: a worldwide cargo-presence field observed approximately four days ago, surrounded by weather, risk, and commodity context. This guide explains what you are seeing, where it comes from, and where uncertainty begins.</p>
+          <p className="wiki-deck">Cargo Constellations is an atmospheric globe of the recent memory of ocean trade. Its primary pilot joins identity-preserving cargo-vessel observations from approximately four days ago across Singapore and the Malacca Strait, surrounded by optional live, environmental, risk, and commodity context. This guide explains what you are seeing, where it comes from, and where uncertainty begins.</p>
           <div className="wiki-hero-note">
             <span>THE CENTRAL PROMISE</span>
             <p>Every number is real, derived from a named observation, or visibly marked as demonstration data. Beauty should invite curiosity—not hide the limits of the evidence.</p>
@@ -77,11 +78,11 @@ export default function WikiPage() {
           <div className="signal-story" aria-label="How vessel data reaches the globe">
             <div><b>1</b><strong>Ships leave signals</strong><p>Cargo and carrier vessels broadcast AIS positions across the world. Coverage varies with coastal and satellite reception.</p></div>
             <i aria-hidden="true">→</i>
-            <div><b>2</b><strong>Presence becomes a field</strong><p>Global Fishing Watch aggregates those observations into relative activity rather than exposing each ship as a live point.</p></div>
+            <div><b>2</b><strong>Identity survives the grid</strong><p>Global Fishing Watch publishes hourly gridded observations that retain a vessel identity for this bounded report.</p></div>
             <i aria-hidden="true">→</i>
             <div><b>3</b><strong>The horizon settles</strong><p>The latest complete global view arrives about four days later. The date is shown prominently because the delay is part of the meaning.</p></div>
             <i aria-hidden="true">→</i>
-            <div><b>4</b><strong>The ocean remembers</strong><p>Activity becomes diffuse teal wakes and warm constellation sparks. Crisp live lanterns appear only if the optional Nordic sample is enabled.</p></div>
+            <div><b>4</b><strong>The ocean remembers</strong><p>Ordered observations for the same cargo vessel become a gold constellation. Teal density remains optional context; crisp live lanterns appear only in the Nordic sample.</p></div>
           </div>
           <div className="truth-table">
             <div><span className="truth-symbol received" /><strong>Received</strong><p>Direct observation or official published record.</p></div>
@@ -116,7 +117,8 @@ export default function WikiPage() {
               <li>Radar detections unmatched to AIS are interesting, but they do not prove a vessel deliberately went dark.</li>
               <li>Weather and ocean fields are models sampled across large areas; they are not readings from each ship.</li>
               <li>AIS destinations are manually entered free text. A resolved port and great-circle path are interpretive context, not a captain&apos;s filed route.</li>
-              <li>The Global Fishing Watch world wake samples a low-resolution presence heatmap observed approximately four days earlier. It cannot identify a ship&apos;s current position.</li>
+              <li>Gold delayed voyages join hourly grid cells for the same vessel. They show observed order, not the exact path between hours, and the current pilot covers only Singapore and the Malacca Strait.</li>
+              <li>The optional Global Fishing Watch world wake is a low-resolution aggregate presence heatmap. It cannot identify or trace an individual ship.</li>
               <li>Public commodity benchmarks are monthly context. They are not live quotes or trading advice.</li>
             </ul>
           </div>
@@ -125,8 +127,8 @@ export default function WikiPage() {
         <section className="wiki-section" aria-labelledby="roadmap-title">
           <div className="wiki-section-title"><span>05</span><div><p>THE WORLD AHEAD</p><h2 id="roadmap-title">From wonder layer to quiet instrument</h2></div></div>
           <div className="roadmap-river">
-            <div><span>NOW</span><h3>Remember</h3><p>A four-day-delayed global cargo wake is the primary world, with optional Nordic live traffic, weather spirits, sea ice, incidents, and market context.</p></div>
-            <div><span>NEXT</span><h3>Understand</h3><p>A reciprocal AISHub receiver, cyclone tracks, durable cross-restart voyage history, port dwell time, better commodity inference, and port calls.</p></div>
+            <div><span>NOW</span><h3>Remember</h3><p>Identity-preserving, four-day-delayed cargo voyages across the Singapore–Malacca pilot corridor are primary, with optional Nordic live traffic and contextual layers.</p></div>
+            <div><span>NEXT</span><h3>Understand</h3><p>Expand the same delayed method across major corridors, persist voyage history, connect port calls, and improve cautious commodity inference.</p></div>
             <div><span>LATER</span><h3>Act carefully</h3><p>Freight context, ETA reliability, and procurement timing—always separated from the contemplative globe.</p></div>
           </div>
           <p className="roadmap-note">This is the bridge to the build specification’s action layer: analytics should grow from an honest data model without remaking the world as a conventional dashboard.</p>

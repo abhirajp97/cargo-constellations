@@ -85,6 +85,35 @@ export type WorldWakeSnapshot = {
   cells: WorldWakeCell[];
 };
 
+export type DelayedVoyagePoint = {
+  observedAt: string;
+  lat: number;
+  lon: number;
+};
+
+export type DelayedVoyage = {
+  vesselId: string;
+  mmsi?: string;
+  imo?: string;
+  name?: string;
+  vesselType?: string;
+  points: DelayedVoyagePoint[];
+  distanceNm: number;
+};
+
+export type DelayedVoyagePilot = {
+  observedAt: string;
+  dateRange: string;
+  region: string;
+  source: string;
+  caveat: string;
+  verdict: "pass" | "fail";
+  rows: number;
+  identifiedVessels: number;
+  qualifyingVessels: number;
+  candidates: DelayedVoyage[];
+};
+
 export type StaticIntelligence = {
   seaIce: SeaIceSnapshot;
   piracy: PiracySnapshot;
@@ -175,4 +204,10 @@ export async function fetchWorldWake(websocketUrl: string): Promise<WorldWakeSna
       intensity: Math.min(1, Math.sqrt(cell.intensity / peakIntensity)),
     })),
   };
+}
+
+export async function fetchDelayedVoyagePilot(websocketUrl: string): Promise<DelayedVoyagePilot> {
+  const response = await fetch(`${relayHttpBase(websocketUrl)}/api/gfw-voyage-probe`);
+  if (!response.ok) throw new Error(response.status === 503 ? "GFW token not configured" : "Delayed voyage pilot unavailable");
+  return response.json() as Promise<DelayedVoyagePilot>;
 }

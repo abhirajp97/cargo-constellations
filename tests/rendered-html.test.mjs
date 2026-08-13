@@ -20,12 +20,13 @@ test("server-renders the Cargo Constellations experience", async () => {
   const html = await response.text();
   assert.match(html, /Cargo Constellations/i);
   assert.match(html, /THE RECENT MEMORY OF GLOBAL TRADE/);
-  assert.match(html, /OBSERVED VESSELS/);
-  assert.match(html, /Interactive globe showing observed cargo vessels and their received AIS trails/);
+  assert.match(html, /DELAYED VOYAGE PILOT/);
+  assert.match(html, /Interactive globe showing identified cargo-vessel paths from delayed hourly AIS observations/);
   assert.match(html, /WORLD LAYERS/);
   assert.match(html, /Bathymetry/);
   assert.match(html, /Listening waters/);
   assert.match(html, /Traffic memory \(aggregate\)/);
+  assert.match(html, /Delayed vessel voyages/);
   assert.match(html, /Observed Nordic vessels/);
   assert.doesNotMatch(html, /PRIMARY VIEW · GLOBAL CARGO WAKE/);
   assert.match(html, /NOAA GFS/);
@@ -45,6 +46,7 @@ test("server-renders the plain-language field guide", async () => {
   assert.match(html, /A small maritime glossary/);
   assert.match(html, /Global Fishing Watch/);
   assert.match(html, /Norwegian Coastal Administration/);
+  assert.match(html, /Delayed voyage/);
   assert.match(html, /Inferred voyage/);
   assert.match(html, /World wake/);
 });

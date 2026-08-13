@@ -354,8 +354,11 @@ button { color: inherit; }
 .history-banner { position: absolute; z-index: 24; top: 134px; left: 43px; display: flex; align-items: center; gap: 13px; max-width: min(590px, calc(100vw - 410px)); padding: 12px 24px 12px 15px; border-left: 2px solid currentColor; color: #99ead5; background: linear-gradient(90deg, rgba(20, 83, 84, .5), rgba(12, 38, 56, .12)); clip-path: polygon(0 0, 97% 5%, 100% 78%, 94% 100%, 0 91%); font: 600 8px/1.45 var(--font-geist-mono), monospace; letter-spacing: .15em; text-shadow: 0 2px 12px rgba(2,8,16,.9); box-shadow: 0 16px 45px rgba(3, 16, 28, .2); pointer-events: none; }
 .history-banner.loading { color: #b89864; }
 .history-banner.offline, .history-banner.key { color: #b67f72; }
+.voyage-history { color: #f0cf8a; background: linear-gradient(90deg, rgba(113, 78, 37, .55), rgba(12, 38, 56, .12)); }
 .wake-glyph { width: 30px; height: 9px; border-top: 1px solid currentColor; border-radius: 50%; box-shadow: 0 -5px 17px currentColor; opacity: .92; }
+.voyage-glyph { width: 32px; height: 10px; border-top: 1px solid currentColor; transform: rotate(-8deg); box-shadow: 8px -4px 0 -3px currentColor, 17px 1px 0 -3px currentColor, 27px -3px 0 -3px currentColor; opacity: .92; }
 .wake-readout { border-left-color: rgba(116, 220, 199, .42); background: linear-gradient(90deg, rgba(73, 177, 165, .1), transparent); }
+.voyage-readout { border-left-color: rgba(243, 210, 138, .5); background: linear-gradient(90deg, rgba(190, 141, 68, .12), transparent); }
 .layer-state.delayed { background: #74dcc7; box-shadow: 0 0 9px rgba(116,220,199,.65); }
 .status-dot { width: 6px; height: 6px; border-radius: 50% 38% 56% 42%; box-shadow: 0 0 13px currentColor; }
 .map-verse { position: absolute; z-index: 19; left: 43px; top: 50%; transform: translateY(-35%); padding-left: 15px; border-left: 1px solid rgba(225,181,101,.42); pointer-events: none; text-shadow: 0 2px 15px rgba(4,8,18,.8); }
@@ -410,6 +413,7 @@ button { color: inherit; }
 .market-grid > div { border: 1px solid rgba(227,181,102,.08); border-radius: 0; background: rgba(8,19,33,.46); }
 .rail-note > p:nth-child(2), .truth-key { color: #9f9583; }
 .solid-line, .dotted-line { border-color: #ddb15f; }
+.gridded-line { width: 24px; height: 5px; background: repeating-linear-gradient(90deg, #f3d28a 0 5px, rgba(243,210,138,.28) 5px 8px); box-shadow: 0 0 10px rgba(243,210,138,.3); }
 .brush-line { width: 24px; height: 5px; background: linear-gradient(90deg, transparent, rgba(238,213,163,.8) 22%, rgba(238,213,163,.34) 78%, transparent); clip-path: polygon(0 38%, 82% 0, 100% 55%, 76% 100%, 12% 78%); }
 
 .globe-controls { left: 42px; bottom: 77px; color: #a79a84; }

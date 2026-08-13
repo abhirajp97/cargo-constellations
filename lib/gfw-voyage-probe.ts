@@ -97,6 +97,6 @@ export function summarizeGfwVoyageProbe(rows: GfwPresenceRow[]): GfwProbeSummary
     rows: rows.length,
     identifiedVessels: groups.size,
     qualifyingVessels: candidates.length,
-    candidates: candidates.slice(0, 25),
+    candidates: candidates.slice(0, 180),
   };
 }
