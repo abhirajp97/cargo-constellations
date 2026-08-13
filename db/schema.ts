@@ -33,3 +33,17 @@ export const voyageFixes = sqliteTable("voyage_fixes", {
 }, (table) => [
   primaryKey({ columns: [table.voyageId, table.observedAt] }),
 ]);
+
+export const voyageSnapshots = sqliteTable("voyage_snapshots", {
+  id: text("id").primaryKey(),
+  dateRange: text("date_range").notNull(),
+  observedAt: integer("observed_at", { mode: "timestamp_ms" }).notNull(),
+  source: text("source").notNull(),
+  corridorCount: integer("corridor_count").notNull(),
+  voyageCount: integer("voyage_count").notNull(),
+  payload: text("payload").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+}, (table) => [
+  index("idx_voyage_snapshots_updated_at").on(table.updatedAt),
+]);

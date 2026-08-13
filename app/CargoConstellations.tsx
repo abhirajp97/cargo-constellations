@@ -18,9 +18,11 @@ import { DATA_LAYERS, defaultLayerSet, type LayerId } from "../lib/layers";
 import { PORT_SANCTUARIES, resolveDestination, type PortSanctuary } from "../lib/ports";
 import {
   fetchDelayedVoyagePilot,
+  fetchPersistedDelayedVoyagePilot,
   fetchSarDetections,
   fetchStaticIntelligence,
   fetchWorldWake,
+  persistDelayedVoyagePilot,
   type DelayedVoyagePilot,
   type SarSnapshot,
   type StaticIntelligence,
@@ -56,7 +58,7 @@ const CORRIDOR_COLORS: Record<string, string> = {
 };
 
 const LAYER_GUIDE: Partial<Record<LayerId, { color: string; cue: string; focus?: [number, number] }>> = {
-  "delayed-voyages": { color: "#F3D28A", cue: "Gold constellations join ordered hourly cargo-vessel observations from four days ago.", focus: [-103, -2] },
+  "delayed-voyages": { color: "#F3D28A", cue: "Colored constellations join ordered daily cargo-vessel observations from about four days ago.", focus: [-103, -2] },
   "live-vessels": { color: "#E6B86C", cue: "Crisp lanterns and solid trails are successive AIS fixes heard in Finland and Norway.", focus: [-15, -57] },
   coverage: { color: "#9FCDB9", cue: "Soft washes reveal where the current public receiver networks can hear ships.", focus: [-15, -57] },
   bathymetry: { color: "#4B8F9D", cue: "Nested blue contours show depth bands beneath the ocean." },
@@ -106,6 +108,17 @@ function formatCoordinate(value: number, positive: string, negative: string) {
 
 function formatPrice(value: number) {
   return value >= 100 ? value.toLocaleString("en-US", { maximumFractionDigits: 0 }) : value.toFixed(2);
+}
+
+function formatArchiveTime(value: string) {
+  return new Date(value).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "UTC",
+    timeZoneName: "short",
+  });
 }
 
 function trailDistanceNm(trail: Vessel["trail"]) {
@@ -243,6 +256,8 @@ export default function CargoConstellations() {
   const [worldWake, setWorldWake] = useState<WorldWakeSnapshot | null>(null);
   const [delayedVoyageStatus, setDelayedVoyageStatus] = useState<"key" | "loading" | "live" | "offline">(wsUrl ? "loading" : "key");
   const [delayedVoyagePilot, setDelayedVoyagePilot] = useState<DelayedVoyagePilot | null>(null);
+  const [delayedVoyageOrigin, setDelayedVoyageOrigin] = useState<"archive" | "source" | null>(null);
+  const [delayedVoyagePersistedAt, setDelayedVoyagePersistedAt] = useState<string | null>(null);
   const [activeCorridor, setActiveCorridor] = useState("all");
   const [soundOn, setSoundOn] = useState(false);
   const [layerMoment, setLayerMoment] = useState<{ id: LayerId; enabled: boolean } | null>(null);
@@ -379,21 +394,40 @@ export default function CargoConstellations() {
   }, [wsUrl, worldWakeRequested]);
 
   useEffect(() => {
-    if (!wsUrl || !delayedVoyagesRequested) return;
+    if (!delayedVoyagesRequested) return;
     let stopped = false;
-    const update = () => {
-      setDelayedVoyageStatus((current) => current === "live" ? current : "loading");
-      fetchDelayedVoyagePilot(wsUrl)
-        .then((pilot) => {
-          if (stopped) return;
-          delayedVoyagePilotRef.current = pilot;
-          setDelayedVoyagePilot(pilot);
-          setDelayedVoyageStatus(pilot.verdict === "pass" ? "live" : "offline");
-        })
-        .catch((error) => {
-          if (stopped) return;
-          setDelayedVoyageStatus(error instanceof Error && error.message.includes("token") ? "key" : "offline");
-        });
+    const showPilot = (pilot: DelayedVoyagePilot, origin: "archive" | "source", persistedAt: string | null) => {
+      delayedVoyagePilotRef.current = pilot;
+      setDelayedVoyagePilot(pilot);
+      setDelayedVoyageOrigin(origin);
+      setDelayedVoyagePersistedAt(persistedAt);
+      setDelayedVoyageStatus(pilot.verdict === "pass" ? "live" : "offline");
+    };
+
+    const update = async () => {
+      if (!delayedVoyagePilotRef.current) setDelayedVoyageStatus("loading");
+      let archiveIsFresh = false;
+      try {
+        const persisted = await fetchPersistedDelayedVoyagePilot();
+        if (stopped) return;
+        showPilot(persisted.pilot, "archive", persisted.persistedAt);
+        archiveIsFresh = Date.now() - Date.parse(persisted.persistedAt) < 11 * 60 * 60 * 1000;
+      } catch { /* an empty archive is expected before the first successful refresh */ }
+
+      if (!wsUrl || stopped || archiveIsFresh) return;
+      try {
+        const pilot = await fetchDelayedVoyagePilot(wsUrl);
+        if (stopped) return;
+        showPilot(pilot, "source", null);
+        if (pilot.verdict === "pass") {
+          persistDelayedVoyagePilot(pilot)
+            .then((persistedAt) => { if (!stopped) setDelayedVoyagePersistedAt(persistedAt); })
+            .catch(() => undefined);
+        }
+      } catch (error) {
+        if (stopped || delayedVoyagePilotRef.current) return;
+        setDelayedVoyageStatus(error instanceof Error && error.message.includes("token") ? "key" : "offline");
+      }
     };
     update();
     const timer = window.setInterval(update, 12 * 60 * 60 * 1000);
@@ -1243,8 +1277,8 @@ export default function CargoConstellations() {
         <div className={`history-banner voyage-history ${delayedVoyageStatus}`}>
           <span className="voyage-glyph" aria-hidden="true" />
           {delayedVoyageStatus === "live" && delayedVoyagePilot
-            ? `PRIMARY VIEW · ${delayedVoyagePilot.candidates.length} IDENTIFIED CARGO VOYAGES · ${delayedVoyagePilot.dateRange} · DAILY GRIDDED AIS`
-            : delayedVoyageStatus === "loading" ? "ASSEMBLING THE FOUR-DAY VOYAGE CONSTELLATIONS" : "DELAYED VOYAGE PILOT UNAVAILABLE"}
+            ? `${delayedVoyageOrigin === "archive" ? "DURABLE ARCHIVE" : delayedVoyagePersistedAt ? "SOURCE REFRESH · ARCHIVED" : "SOURCE REFRESH"} · ${delayedVoyagePilot.candidates.length} IDENTIFIED CARGO VOYAGES · ${delayedVoyagePilot.dateRange}`
+            : delayedVoyageStatus === "loading" ? "OPENING THE DURABLE VOYAGE ARCHIVE" : "DELAYED VOYAGE ARCHIVE UNAVAILABLE"}
         </div>
       )}
       {layers.has("world-wake") && !layers.has("delayed-voyages") && (
@@ -1272,6 +1306,7 @@ export default function CargoConstellations() {
           <p className="eyebrow">MULTI-CORRIDOR VOYAGES</p>
           <div className="primary-stat"><strong>{delayedVoyagePilot?.candidates.length.toLocaleString() ?? "···"}</strong><span>identified cargo vessels shown</span></div>
           <p className="wake-date">{delayedVoyagePilot ? <><strong>{delayedVoyagePilot.dateRange}</strong> · {delayedVoyagePilot.corridors.filter((corridor) => corridor.status === "live").length} major corridors</> : "Gathering identity-preserving observations"}</p>
+          {delayedVoyagePersistedAt && <p className="archive-note">Hosted archive saved {formatArchiveTime(delayedVoyagePersistedAt)}</p>}
           <p className="coverage-explainer">Each colored line joins four days of daily gridded AIS observations for one identified vessel. The view is delayed about four days; the space between observations is not an exact sailed track.</p>
           {delayedVoyagePilot && (
             <div className="corridor-switcher" aria-label="Voyage corridor focus">
@@ -1368,13 +1403,13 @@ export default function CargoConstellations() {
               );
             })}
           </div>
-          <p className="layer-footnote">Gold identity-preserving voyages are primary. Live Nordic receivers, aggregate traffic, weather and intelligence remain optional context.</p>
+          <p className="layer-footnote">Colored identity-preserving voyages are primary. Live Nordic receivers, aggregate traffic, weather and intelligence remain optional context.</p>
 
           {(intelligence || worldWake || sar || delayedVoyagePilot) && ["delayed-voyages", "sea-ice", "canal-restrictions", "piracy", "commodity-prices", "world-wake", "dark-vessels"].some((id) => layers.has(id as LayerId)) && (
             <div className="intelligence-readouts" aria-label="Active intelligence layer details">
               {layers.has("delayed-voyages") && delayedVoyagePilot && (
                 <div className="intel-readout voyage-readout">
-                  <span>IDENTITY-PRESERVING PILOT</span>
+                  <span>DURABLE VOYAGE ARCHIVE</span>
                   <strong>{delayedVoyagePilot.qualifyingVessels.toLocaleString()} long voyages qualify</strong>
                   <small>{delayedVoyagePilot.rows.toLocaleString()} daily cells · {delayedVoyagePilot.identifiedVessels.toLocaleString()} corridor vessel IDs · showing {delayedVoyagePilot.candidates.length.toLocaleString()}</small>
                 </div>
@@ -1439,7 +1474,7 @@ export default function CargoConstellations() {
 
         <section className="rail-section rail-note">
           <p className="eyebrow">TRAVELER&apos;S KEY</p>
-          <p>Gold constellations preserve one vessel&apos;s identity through hourly observations. Teal presence marks are aggregate context and cannot show a ship&apos;s path.</p>
+          <p>Colored constellations preserve one vessel&apos;s identity through daily observations. Teal presence marks are aggregate context and cannot show a ship&apos;s path.</p>
           <div className="truth-key"><span className="gridded-line" />Delayed daily AIS</div>
           <div className="truth-key"><span className="solid-line" />Received AIS</div>
           <div className="truth-key"><span className="brush-line" />Inferred horizon</div>

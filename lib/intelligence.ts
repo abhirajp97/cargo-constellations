@@ -256,3 +256,27 @@ export async function fetchDelayedVoyagePilot(websocketUrl: string): Promise<Del
     candidates,
   };
 }
+
+export type PersistedDelayedVoyagePilot = {
+  pilot: DelayedVoyagePilot;
+  persistedAt: string;
+};
+
+export async function fetchPersistedDelayedVoyagePilot(): Promise<PersistedDelayedVoyagePilot> {
+  const response = await fetch("/api/voyage-snapshots", { cache: "no-store" });
+  if (!response.ok) throw new Error("Durable voyage archive unavailable");
+  const result = await response.json() as { snapshot: DelayedVoyagePilot | null; persistedAt: string | null };
+  if (!result.snapshot || !result.persistedAt) throw new Error("Durable voyage archive is empty");
+  return { pilot: result.snapshot, persistedAt: result.persistedAt };
+}
+
+export async function persistDelayedVoyagePilot(pilot: DelayedVoyagePilot): Promise<string> {
+  const response = await fetch("/api/voyage-snapshots", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(pilot),
+  });
+  if (!response.ok) throw new Error("Voyage snapshot could not be persisted");
+  const result = await response.json() as { persistedAt: string };
+  return result.persistedAt;
+}

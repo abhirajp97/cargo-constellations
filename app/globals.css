@@ -376,6 +376,7 @@ button { color: inherit; }
 .wake-stat strong { color: #9de5cf; text-shadow: 0 0 28px rgba(76, 205, 184, .2); }
 .wake-date { margin: 12px 0 0; color: #9f9686; font: 500 8px/1.5 var(--font-geist-mono), monospace; letter-spacing: .05em; }
 .wake-date strong { color: #d8be88; font-weight: 600; }
+.archive-note { margin: 5px 0 0; color: rgba(148, 213, 193, .74); font: 500 7px/1.45 var(--font-geist-mono), monospace; letter-spacing: .07em; text-transform: uppercase; }
 .coverage-explainer { margin: 13px 0 0; color: #aaa18f; font: 400 10px/1.65 var(--font-geist-sans), sans-serif; }
 .live-sample-summary { display: grid; gap: 5px; margin-top: 17px; padding: 12px 13px; border-left: 1px solid rgba(230,184,108,.35); background: linear-gradient(90deg, rgba(230,184,108,.08), transparent); }
 .live-sample-summary span { color: #a5885b; font: 600 7px var(--font-geist-mono), monospace; letter-spacing: .14em; }
