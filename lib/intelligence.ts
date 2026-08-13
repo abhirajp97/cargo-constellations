@@ -122,7 +122,7 @@ export async function fetchWorldWake(websocketUrl: string): Promise<WorldWakeSna
   const response = await fetch(`${base}/api/world-wake`);
   if (!response.ok) throw new Error(response.status === 503 ? "GFW token not configured" : "World wake unavailable");
   const manifest = await response.json() as Omit<WorldWakeSnapshot, "cells"> & { zoom: number; tiles: Array<{ x: number; y: number; url: string }> };
-  const tileCells = await Promise.all(manifest.tiles.map(async (tile) => {
+  const tileResults = await Promise.allSettled(manifest.tiles.map(async (tile) => {
     const tileResponse = await fetch(`${base}${tile.url}`);
     if (!tileResponse.ok) throw new Error("World wake tile unavailable");
     const bitmap = await createImageBitmap(await tileResponse.blob());
@@ -156,6 +156,10 @@ export async function fetchWorldWake(websocketUrl: string): Promise<WorldWakeSna
     }
     return cells;
   }));
+  const tileCells = tileResults
+    .filter((result): result is PromiseFulfilledResult<WorldWakeCell[]> => result.status === "fulfilled")
+    .map((result) => result.value);
+  if (tileCells.length === 0) throw new Error("World wake tiles unavailable");
   return {
     observedAt: manifest.observedAt,
     dateRange: manifest.dateRange,
