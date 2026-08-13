@@ -48,6 +48,7 @@ const AIS_WEBSOCKET_URL = process.env.NEXT_PUBLIC_AIS_WEBSOCKET_URL || DEFAULT_A
 const LIVE_GRACE_PERIOD_MS = 45_000;
 
 const LAYER_GUIDE: Partial<Record<LayerId, { color: string; cue: string; focus?: [number, number] }>> = {
+  "live-vessels": { color: "#E6B86C", cue: "Crisp lanterns reveal the optional live sample heard by receivers in Finland and Norway.", focus: [-15, -57] },
   coverage: { color: "#9FCDB9", cue: "Soft washes reveal where the current public receiver networks can hear ships.", focus: [-15, -57] },
   bathymetry: { color: "#4B8F9D", cue: "Nested blue contours show depth bands beneath the ocean." },
   routes: { color: "#E9C46A", cue: "Gold dotted paths are computed sea routes, not live vessel tracks." },
@@ -159,19 +160,32 @@ function makeGlowSprite(color: string) {
   return canvas;
 }
 
-function makeWakeSprite() {
+function makeWakeSprite(warm = false) {
   const canvas = document.createElement("canvas");
-  canvas.width = 48;
+  canvas.width = 80;
   canvas.height = 48;
   const context = canvas.getContext("2d");
   if (!context) return canvas;
-  const gradient = context.createRadialGradient(24, 24, 0, 24, 24, 23);
-  gradient.addColorStop(0, "rgba(139, 244, 217, .7)");
-  gradient.addColorStop(0.16, "rgba(91, 211, 193, .36)");
-  gradient.addColorStop(0.52, "rgba(52, 148, 157, .12)");
-  gradient.addColorStop(1, "rgba(28, 92, 116, 0)");
+  context.save();
+  context.translate(40, 24);
+  context.scale(1.7, 0.72);
+  const gradient = context.createRadialGradient(0, 0, 0, 0, 0, 22);
+  gradient.addColorStop(0, warm ? "rgba(255, 225, 157, .95)" : "rgba(196, 255, 235, .88)");
+  gradient.addColorStop(0.12, warm ? "rgba(238, 177, 91, .62)" : "rgba(91, 229, 207, .58)");
+  gradient.addColorStop(0.46, warm ? "rgba(202, 121, 67, .18)" : "rgba(45, 169, 177, .2)");
+  gradient.addColorStop(1, "rgba(17, 86, 116, 0)");
   context.fillStyle = gradient;
-  context.fillRect(0, 0, 48, 48);
+  context.beginPath();
+  context.arc(0, 0, 22, 0, Math.PI * 2);
+  context.fill();
+  context.restore();
+  context.strokeStyle = warm ? "rgba(255, 226, 166, .72)" : "rgba(150, 247, 225, .52)";
+  context.lineWidth = warm ? 1 : 0.7;
+  context.beginPath();
+  context.moveTo(31, 24);
+  context.quadraticCurveTo(40, 19, 49, 24);
+  context.quadraticCurveTo(40, 29, 31, 24);
+  context.stroke();
   return canvas;
 }
 
@@ -179,7 +193,7 @@ export default function CargoConstellations() {
   const shellRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const storeRef = useRef(new Map<string, Vessel>());
-  const rotationRef = useRef<[number, number]>([-15, -57]);
+  const rotationRef = useRef<[number, number]>([-18, -9]);
   const draggingRef = useRef(false);
   const movedRef = useRef(false);
   const pointerRef = useRef<[number, number]>([0, 0]);
@@ -221,6 +235,7 @@ export default function CargoConstellations() {
   const [stats, setStats] = useState({ vessels: 0, moving: 0, laden: 0, anchors: 0, gaps: 0, fintraffic: 0, kystverket: 0, counts: EMPTY_COUNTS });
   const sarRequested = layers.has("dark-vessels");
   const worldWakeRequested = layers.has("world-wake");
+  const liveVesselsRequested = layers.has("live-vessels");
 
   useEffect(() => { autoRotateRef.current = autoRotate; }, [autoRotate]);
   useEffect(() => { filterRef.current = filters; }, [filters]);
@@ -386,6 +401,10 @@ export default function CargoConstellations() {
   }, []);
 
   useEffect(() => {
+    if (!liveVesselsRequested) {
+      storeRef.current.clear();
+      return;
+    }
     const update = (envelope: AisEnvelope, source: Vessel["source"]) => {
       const payload = envelope.Message?.[envelope.MessageType];
       const mmsi = String(payload?.UserID ?? payload?.MMSI ?? envelope.MetaData?.MMSI ?? "");
@@ -467,11 +486,13 @@ export default function CargoConstellations() {
       demo?.stop();
       socket?.close();
     };
-  }, [wsUrl]);
+  }, [wsUrl, liveVesselsRequested]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
       const now = Date.now();
+      if (!layerRef.current.has("live-vessels")) return;
+      setClock(new Date(now));
       const vessels = [...storeRef.current.values()].filter((vessel) => vessel.lastFix && now - vessel.lastFix.receivedAt < 3_600_000);
       const counts = { ...EMPTY_COUNTS };
       for (const vessel of vessels) counts[vessel.commodity ?? "unknown"] += 1;
@@ -498,7 +519,6 @@ export default function CargoConstellations() {
         counts,
       });
       setSelected(selectedMmsi ? storeRef.current.get(selectedMmsi) : undefined);
-      setClock(new Date(now));
     }, 1000);
     return () => window.clearInterval(timer);
   }, [selectedMmsi]);
@@ -508,7 +528,7 @@ export default function CargoConstellations() {
     if (!canvas) return;
     const context = canvas.getContext("2d");
     if (!context) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.35);
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.2);
     canvas.width = dimensions.width * dpr;
     canvas.height = dimensions.height * dpr;
     canvas.style.width = `${dimensions.width}px`;
@@ -518,13 +538,14 @@ export default function CargoConstellations() {
       Object.entries(COLORS).map(([key, color]) => [key, makeGlowSprite(color)]),
     ) as Record<Commodity, HTMLCanvasElement>;
     const wakeSprite = makeWakeSprite();
+    const wakeStarSprite = makeWakeSprite(true);
     const graticule = d3.geoGraticule10();
     let animation = 0;
     let previousFrame = 0;
 
     const frame = (now: number) => {
       animation = window.requestAnimationFrame(frame);
-      if (document.hidden || now - previousFrame < 33) return;
+      if (document.hidden || now - previousFrame < 40) return;
       previousFrame = now;
       const wallNow = Date.now();
       const elapsed = Math.min((now - lastDrawRef.current) / 1000, 0.1);
@@ -627,13 +648,13 @@ export default function CargoConstellations() {
         context.beginPath();
         path(landRef.current as never);
         const landWash = context.createLinearGradient(centerX - radius, centerY - radius, centerX + radius, centerY + radius);
-        landWash.addColorStop(0, "rgba(39, 62, 63, .72)");
-        landWash.addColorStop(0.42, "rgba(27, 48, 52, .76)");
-        landWash.addColorStop(1, "rgba(15, 35, 43, .82)");
+        landWash.addColorStop(0, "rgba(41, 58, 62, .5)");
+        landWash.addColorStop(0.42, "rgba(27, 45, 51, .56)");
+        landWash.addColorStop(1, "rgba(14, 31, 42, .64)");
         context.fillStyle = landWash;
         context.fill();
-        context.strokeStyle = "rgba(159, 199, 185, 0.3)";
-        context.lineWidth = 0.8;
+        context.strokeStyle = "rgba(145, 185, 181, 0.18)";
+        context.lineWidth = 0.65;
         context.stroke();
       }
 
@@ -663,7 +684,7 @@ export default function CargoConstellations() {
         context.setLineDash([]);
       }
 
-      const focusedVessel = selectedMmsi ? storeRef.current.get(selectedMmsi) : undefined;
+      const focusedVessel = layerRef.current.has("live-vessels") && selectedMmsi ? storeRef.current.get(selectedMmsi) : undefined;
       const inferredDestination = resolveDestination(focusedVessel?.destination);
       if (focusedVessel?.lastFix && inferredDestination) {
         const origin: [number, number] = [focusedVessel.lastFix.lon, focusedVessel.lastFix.lat];
@@ -830,21 +851,28 @@ export default function CargoConstellations() {
 
       if (layerRef.current.has("world-wake") && worldWakeRef.current) {
         context.save();
-        context.globalCompositeOperation = "screen";
+        context.globalCompositeOperation = "lighter";
         for (const cell of worldWakeRef.current.cells) {
           const coords: [number, number] = [cell.lon, cell.lat];
           if (!visible(coords)) continue;
           const point = projection(coords);
           if (!point) continue;
-          const size = 6 + cell.intensity * 22;
-          context.globalAlpha = Math.min(0.76, 0.18 + cell.intensity * 1.25);
-          context.drawImage(wakeSprite, point[0] - size / 2, point[1] - size / 2, size, size);
+          const shimmer = 0.9 + Math.sin(now / 1900 + cell.lon * 0.08 + cell.lat * 0.13) * 0.1;
+          const width = (9 + cell.intensity * 35) * shimmer;
+          const height = width * 0.6;
+          context.globalAlpha = Math.min(0.9, 0.18 + cell.intensity * 0.7);
+          context.drawImage(wakeSprite, point[0] - width / 2, point[1] - height / 2, width, height);
+          if (cell.intensity > 0.72) {
+            const starSize = 4 + cell.intensity * 9;
+            context.globalAlpha = 0.32 + cell.intensity * 0.38;
+            context.drawImage(wakeStarSprite, point[0] - starSize, point[1] - starSize * 0.36, starSize * 2, starSize * 0.72);
+          }
         }
         context.globalAlpha = 1;
         context.restore();
       }
 
-      const vessels = [...storeRef.current.values()];
+      const vessels = layerRef.current.has("live-vessels") ? [...storeRef.current.values()] : [];
       for (const commodity of FILTERS) {
         if (!filterRef.current.has(commodity)) continue;
         context.beginPath();
@@ -928,7 +956,7 @@ export default function CargoConstellations() {
         }
       }
 
-      for (const port of PORT_SANCTUARIES) {
+      for (const port of layerRef.current.has("live-vessels") ? PORT_SANCTUARIES : []) {
         if (!visible(port.coords)) continue;
         const point = projection(port.coords);
         if (!point) continue;
@@ -1096,6 +1124,11 @@ export default function CargoConstellations() {
       const next = new Set(current);
       const enabling = !next.has(id);
       if (!enabling) next.delete(id); else next.add(id);
+      if (id === "live-vessels" && !enabling) {
+        setSelectedMmsi(null);
+        setSelected(undefined);
+        setStats({ vessels: 0, moving: 0, laden: 0, anchors: 0, gaps: 0, fintraffic: 0, kystverket: 0, counts: EMPTY_COUNTS });
+      }
       setLayerMoment({ id, enabled: enabling });
       const focus = LAYER_GUIDE[id]?.focus;
       if (enabling && focus) {
@@ -1107,10 +1140,6 @@ export default function CargoConstellations() {
     });
   };
 
-  const clockText = useMemo(
-    () => clock.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "UTC", hour12: false }),
-    [clock],
-  );
   const selectedDestination = useMemo(() => resolveDestination(selected?.destination), [selected?.destination]);
   const selectedTrailNm = useMemo(() => trailDistanceNm(selected?.trail ?? []), [selected?.trail]);
   const selectedWeather = useMemo(
@@ -1127,7 +1156,7 @@ export default function CargoConstellations() {
       <canvas
         ref={canvasRef}
         className="globe-canvas"
-        aria-label="Interactive globe showing AIS vessel positions"
+        aria-label="Interactive globe showing four-day-delayed global cargo presence"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -1140,7 +1169,7 @@ export default function CargoConstellations() {
           <div className="brand-mark" aria-hidden="true"><span /><span /><span /></div>
           <div>
             <h1>CARGO CONSTELLATIONS</h1>
-            <p>THE LIVING EDGES OF GLOBAL TRADE</p>
+            <p>THE RECENT MEMORY OF GLOBAL TRADE</p>
           </div>
         </div>
         <nav className="world-nav" aria-label="Project navigation">
@@ -1151,43 +1180,47 @@ export default function CargoConstellations() {
           </button>
         </nav>
         <div className="clock-block">
-          <span>UTC · {clock.toISOString().slice(0, 10)}</span>
-          <strong>{clockText}</strong>
+          <span>OBSERVATION HORIZON</span>
+          <strong>{worldWake?.availableThrough ?? "− 4 DAYS"}</strong>
         </div>
       </header>
 
-      <div className={`source-banner ${connection}`}>
-        <span className="status-dot" />
-        {connection === "live" ? "LIVE VOYAGES · FINLAND + NORWAY" : connection === "connecting" ? "AWAKENING THE HARBORS" : connection === "offline" ? "AIS RELAY SLEEPING" : "STORYBOOK DEMO · SYNTHETIC AIS"}
-      </div>
       {layers.has("world-wake") && (
         <div className={`history-banner ${worldWakeStatus}`}>
           <span className="wake-glyph" aria-hidden="true" />
           {worldWakeStatus === "live" && worldWake
-            ? `GLOBAL CARGO WAKE · OBSERVED THROUGH ${worldWake.availableThrough} · ~4 DAYS DELAYED`
+            ? `PRIMARY VIEW · GLOBAL CARGO WAKE · OBSERVED THROUGH ${worldWake.availableThrough} · ~4 DAYS DELAYED`
             : worldWakeStatus === "loading" ? "PREPARING THE FOUR-DAY GLOBAL WAKE" : "GLOBAL WAKE TEMPORARILY UNAVAILABLE"}
+        </div>
+      )}
+      {layers.has("live-vessels") && (
+        <div className={`source-banner ${connection}`}>
+          <span className="status-dot" />
+          {connection === "live" ? "OPTIONAL LIVE SAMPLE · FINLAND + NORWAY ONLY" : connection === "connecting" ? "AWAKENING THE NORDIC RECEIVERS" : connection === "offline" ? "NORDIC AIS RELAY SLEEPING" : "OPTIONAL STORYBOOK SAMPLE"}
         </div>
       )}
 
       <div className="map-verse" aria-hidden="true">
-        <span>FIELD I · THE OCEAN BETWEEN</span>
-        <p>Every light, a voyage.<br />Every silence, a horizon.</p>
+        <span>FIELD I · FOUR DAYS AGO</span>
+        <p>The ocean remembers<br />where the cargo passed.</p>
       </div>
 
       <aside className="data-rail">
         <section className="rail-section overview">
-          <p className="eyebrow">VISIBLE VOYAGERS</p>
-          <div className="primary-stat"><strong>{stats.vessels}</strong><span>vessels reporting</span></div>
-          <p className="coverage-readout"><span>{stats.fintraffic}</span> Finnish waters <i /> <span>{stats.kystverket}</span> Norwegian waters</p>
-          <div className="mini-grid">
-            <div><strong>{stats.moving}</strong><span>under way</span></div>
-            <div><strong>{stats.laden || "—"}</strong><span>{connection === "demo" ? "laden (sim)" : "laden est."}</span></div>
-            <div><strong>{stats.anchors}</strong><span>anchor / moored</span></div>
-            <div><strong>{stats.gaps}</strong><span>AIS gaps &gt;10m</span></div>
-          </div>
+          <p className="eyebrow">THE FOUR-DAY FIELD</p>
+          <div className="primary-stat wake-stat"><strong>{worldWake?.cells.length.toLocaleString() ?? "···"}</strong><span>sampled cargo-presence signals</span></div>
+          <p className="wake-date">{worldWake ? <>Observed through <strong>{worldWake.availableThrough}</strong></> : "Gathering the recent ocean memory"}</p>
+          <p className="coverage-explainer">A global, aggregate view of where cargo and carrier AIS activity was present approximately four days ago. Brighter wakes mean stronger relative presence—not individual ships.</p>
+          {layers.has("live-vessels") && (
+            <div className="live-sample-summary">
+              <span>OPTIONAL NORDIC SAMPLE</span>
+              <strong>{stats.vessels.toLocaleString()} live positions</strong>
+              <small>{stats.fintraffic} Finland · {stats.kystverket} Norway</small>
+            </div>
+          )}
         </section>
 
-        <section className="rail-section">
+        {layers.has("live-vessels") && <section className="rail-section">
           <div className="section-heading"><p className="eyebrow">VESSEL LAYERS</p><span>{filters.size}/{FILTERS.length}</span></div>
           <div className="filter-list">
             {FILTERS.map((commodity) => (
@@ -1204,7 +1237,7 @@ export default function CargoConstellations() {
               </button>
             ))}
           </div>
-        </section>
+        </section>}
 
         <section className="rail-section data-layers-section">
           <div className="section-heading">
@@ -1245,7 +1278,7 @@ export default function CargoConstellations() {
               );
             })}
           </div>
-          <p className="layer-footnote">Listening waters show the honest reach of the free receivers. Daily and monthly layers show their observation date.</p>
+          <p className="layer-footnote">The four-day wake is the primary global artwork. Crisp vessel lights are an optional Finland-and-Norway sample, never presented as worldwide coverage.</p>
 
           {(intelligence || worldWake || sar) && ["sea-ice", "canal-restrictions", "piracy", "commodity-prices", "world-wake", "dark-vessels"].some((id) => layers.has(id as LayerId)) && (
             <div className="intelligence-readouts" aria-label="Active intelligence layer details">
@@ -1284,8 +1317,8 @@ export default function CargoConstellations() {
               {layers.has("world-wake") && worldWake && (
                 <div className="intel-readout wake-readout">
                   <span>GLOBAL CARGO WAKE · DELAYED</span>
-                  <strong>{worldWake.cells.length.toLocaleString()} sampled ocean signals</strong>
-                  <small>Observed {worldWake.dateRange} · relative cargo and carrier presence intensity · not live positions</small>
+                  <strong>Observed through {worldWake.availableThrough}</strong>
+                  <small>{worldWake.cells.length.toLocaleString()} sampled signals · relative cargo and carrier presence · not live positions</small>
                 </div>
               )}
               {layers.has("commodity-prices") && intelligence && (
@@ -1309,7 +1342,7 @@ export default function CargoConstellations() {
 
         <section className="rail-section rail-note">
           <p className="eyebrow">TRAVELER&apos;S KEY</p>
-          <p>Ports burn as sanctuaries. Solid light is received history; a pale brush-path toward a named port is inferred from AIS destination text.</p>
+          <p>Diffuse teal and gold wake-fields are four-day-delayed cargo presence. Crisp lanterns and their trails appear only when the optional Nordic live sample is enabled.</p>
           <div className="truth-key"><span className="solid-line" />Received AIS</div>
           <div className="truth-key"><span className="brush-line" />Inferred horizon</div>
           <div className="truth-key"><span className="dotted-line" />Reference corridor</div>
@@ -1336,10 +1369,12 @@ export default function CargoConstellations() {
         <span>DRAG TO TURN · SCROLL TO APPROACH</span>
       </div>
 
-      <div className="chokepoint-key">
-        <span />
-        CHOKEPOINTS · SIX NEEDLES
-      </div>
+      {layers.has("chokepoints") ? (
+        <div className="chokepoint-key">
+          <span />
+          CHOKEPOINTS · SIX NEEDLES
+        </div>
+      ) : null}
 
       {selected && selected.lastFix && (
         <section className="vessel-card voyage-scroll" aria-live="polite">
@@ -1400,8 +1435,8 @@ export default function CargoConstellations() {
       )}
 
       <footer className="footer-note">
-        <span>{["winds", "waves", "currents"].some((id) => layers.has(id as LayerId)) ? "THE LIVING WEATHER" : "COASTAL CONSTELLATIONS"}</span>
-        <p>{["winds", "waves", "currents"].some((id) => layers.has(id as LayerId)) ? "NOAA GFS and marine model samples via Open-Meteo · visualization only" : "The oceans do not go dark because nothing is there. They go dark because radio has a horizon."}</p>
+        <span>{["winds", "waves", "currents"].some((id) => layers.has(id as LayerId)) ? "THE LIVING WEATHER" : "THE OCEAN REMEMBERS"}</span>
+        <p>{["winds", "waves", "currents"].some((id) => layers.has(id as LayerId)) ? "NOAA GFS and marine model samples via Open-Meteo · visualization only" : "A global field observed about four days ago · brighter wakes indicate stronger relative cargo presence"}</p>
       </footer>
     </main>
   );

@@ -11,15 +11,15 @@ export async function generateMetadata(): Promise<Metadata> {
   const host = incoming.get("x-forwarded-host") ?? incoming.get("host") ?? "localhost:3000";
   const protocol = incoming.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   const origin = `${protocol}://${host}`;
-  const title = "Cargo Constellations — The Living Edges of Global Trade";
-  const description = "An atmospheric live globe of global commodity shipping, built around honest AIS vessel positions.";
+  const title = "Cargo Constellations — The Recent Memory of Global Trade";
+  const description = "An atmospheric globe of worldwide cargo presence observed approximately four days ago, with an optional regional live AIS sample.";
   return {
     metadataBase: new URL(origin),
     title,
     description,
     icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
-    openGraph: { title, description, type: "website", images: [{ url: `${origin}/og-living-voyage.png`, width: 1200, height: 630 }] },
-    twitter: { card: "summary_large_image", title, description, images: [`${origin}/og-living-voyage.png`] },
+    openGraph: { title, description, type: "website", images: [{ url: `${origin}/og-four-day-wake.png`, width: 1200, height: 630 }] },
+    twitter: { card: "summary_large_image", title, description, images: [`${origin}/og-four-day-wake.png`] },
   };
 }
 

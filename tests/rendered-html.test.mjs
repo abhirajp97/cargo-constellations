@@ -19,13 +19,14 @@ test("server-renders the Cargo Constellations experience", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   assert.match(html, /Cargo Constellations/i);
-  assert.match(html, /THE LIVING EDGES OF GLOBAL TRADE/);
-  assert.match(html, /AWAKENING THE HARBORS/);
-  assert.match(html, /Interactive globe showing AIS vessel positions/);
+  assert.match(html, /THE RECENT MEMORY OF GLOBAL TRADE/);
+  assert.match(html, /THE FOUR-DAY FIELD/);
+  assert.match(html, /Interactive globe showing four-day-delayed global cargo presence/);
   assert.match(html, /WORLD LAYERS/);
   assert.match(html, /Bathymetry/);
   assert.match(html, /Listening waters/);
-  assert.match(html, /Four-day world wake/);
+  assert.match(html, /Four-day cargo wake/);
+  assert.match(html, /Nordic live sample/);
   assert.match(html, /NOAA GFS/);
   assert.match(html, /NSIDC Sea Ice Index/);
   assert.match(html, /World Bank Pink Sheet/);
@@ -38,7 +39,7 @@ test("server-renders the plain-language field guide", async () => {
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /A world of trade/);
-  assert.match(html, /From radio message to point of light/);
+  assert.match(html, /From global signals to ocean memory/);
   assert.match(html, /What the globe cannot know/);
   assert.match(html, /A small maritime glossary/);
   assert.match(html, /Global Fishing Watch/);
@@ -61,6 +62,7 @@ test("ships the cartography and social preview assets", async () => {
     access(new URL("../public/og-dusk-atlas.png", import.meta.url)),
     access(new URL("../public/og-mythic-atlas.png", import.meta.url)),
     access(new URL("../public/og-living-voyage.png", import.meta.url)),
+    access(new URL("../public/og-four-day-wake.png", import.meta.url)),
   ]);
   const packageJson = await readFile(new URL("../package.json", import.meta.url), "utf8");
   assert.match(packageJson, /"ingest": "tsx services\/ais-ingest\.ts"/);

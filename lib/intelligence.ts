@@ -136,7 +136,7 @@ export async function fetchWorldWake(websocketUrl: string): Promise<WorldWakeSna
     const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
     const cells: WorldWakeCell[] = [];
     const scale = 2 ** manifest.zoom;
-    const step = 8;
+    const step = 10;
     for (let py = step / 2; py < canvas.height; py += step) {
       for (let px = step / 2; px < canvas.width; px += step) {
         const index = (Math.floor(py) * canvas.width + Math.floor(px)) * 4;
@@ -160,6 +160,8 @@ export async function fetchWorldWake(websocketUrl: string): Promise<WorldWakeSna
     .filter((result): result is PromiseFulfilledResult<WorldWakeCell[]> => result.status === "fulfilled")
     .map((result) => result.value);
   if (tileCells.length === 0) throw new Error("World wake tiles unavailable");
+  const rankedCells = tileCells.flat().sort((a, b) => b.intensity - a.intensity).slice(0, 3_600);
+  const peakIntensity = rankedCells[0]?.intensity || 1;
   return {
     observedAt: manifest.observedAt,
     dateRange: manifest.dateRange,
@@ -168,6 +170,9 @@ export async function fetchWorldWake(websocketUrl: string): Promise<WorldWakeSna
     source: manifest.source,
     resolution: manifest.resolution,
     filter: manifest.filter,
-    cells: tileCells.flat().sort((a, b) => b.intensity - a.intensity).slice(0, 5_000),
+    cells: rankedCells.map((cell) => ({
+      ...cell,
+      intensity: Math.min(1, Math.sqrt(cell.intensity / peakIntensity)),
+    })),
   };
 }

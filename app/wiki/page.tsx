@@ -2,9 +2,9 @@ import { DATA_LAYERS } from "../../lib/layers";
 import Link from "next/link";
 
 const principles = [
-  ["Wonder before analysis", "The first job is to make the living movement of trade feel worth lingering over. The second is to help explain it."],
+  ["Wonder before analysis", "The first job is to make the recent memory of ocean trade feel worth lingering over. The second is to help explain it."],
   ["Truth before spectacle", "A received position, a model estimate, and a demonstration value must never masquerade as the same kind of fact."],
-  ["Time is part of truth", "Live regional radio and delayed global satellite-derived presence are both useful, but they must never look or read as though they share the same clock."],
+  ["Time is part of truth", "The four-day-delayed global field is the primary world. Optional live regional radio remains useful, but it must never look like global coverage."],
   ["Quiet tools", "Prices and operational signals live beside the globe. They should add meaning without turning the world into a trading terminal."],
 ];
 
@@ -54,7 +54,7 @@ export default function WikiPage() {
         <section className="wiki-hero" id="purpose">
           <p className="wiki-kicker">FIELD GUIDE · VOLUME 01</p>
           <h1>A world of trade,<br /><em>made legible.</em></h1>
-          <p className="wiki-deck">Cargo Constellations is an atmospheric globe of ships, oceans, weather, risk, and the prices connected to them. This guide explains what you are seeing, where it comes from, and where uncertainty begins.</p>
+          <p className="wiki-deck">Cargo Constellations is an atmospheric globe of the recent memory of ocean trade: a worldwide cargo-presence field observed approximately four days ago, surrounded by weather, risk, and commodity context. This guide explains what you are seeing, where it comes from, and where uncertainty begins.</p>
           <div className="wiki-hero-note">
             <span>THE CENTRAL PROMISE</span>
             <p>Every number is real, derived from a named observation, or visibly marked as demonstration data. Beauty should invite curiosity—not hide the limits of the evidence.</p>
@@ -73,15 +73,15 @@ export default function WikiPage() {
         </section>
 
         <section className="wiki-section" id="reading" aria-labelledby="reading-title">
-          <div className="wiki-section-title"><span>02</span><div><p>READING THE GLOBE</p><h2 id="reading-title">From radio message to point of light</h2></div></div>
+          <div className="wiki-section-title"><span>02</span><div><p>READING THE GLOBE</p><h2 id="reading-title">From global signals to ocean memory</h2></div></div>
           <div className="signal-story" aria-label="How vessel data reaches the globe">
-            <div><b>1</b><strong>A ship broadcasts</strong><p>Its radio sends an identity, position, speed, course, and occasional voyage details.</p></div>
+            <div><b>1</b><strong>Ships leave signals</strong><p>Cargo and carrier vessels broadcast AIS positions across the world. Coverage varies with coastal and satellite reception.</p></div>
             <i aria-hidden="true">→</i>
-            <div><b>2</b><strong>A receiver hears it</strong><p>Coastal stations collect messages within the radio horizon. Fintraffic covers Finnish waters; Kystverket opens Norwegian waters and surrounding zones.</p></div>
+            <div><b>2</b><strong>Presence becomes a field</strong><p>Global Fishing Watch aggregates those observations into relative activity rather than exposing each ship as a live point.</p></div>
             <i aria-hidden="true">→</i>
-            <div><b>3</b><strong>Two clocks remain separate</strong><p>Live Finnish and Norwegian radio messages become crisp lanterns. Global Fishing Watch cargo presence arrives about four days later and becomes a soft aggregate wake.</p></div>
+            <div><b>3</b><strong>The horizon settles</strong><p>The latest complete global view arrives about four days later. The date is shown prominently because the delay is part of the meaning.</p></div>
             <i aria-hidden="true">→</i>
-            <div><b>4</b><strong>The globe breathes</strong><p>The solid trail is received truth. The global wake is delayed history. When destination text resolves confidently, a pale brush-path suggests the horizon while remaining explicitly inferred.</p></div>
+            <div><b>4</b><strong>The ocean remembers</strong><p>Activity becomes diffuse teal wakes and warm constellation sparks. Crisp live lanterns appear only if the optional Nordic sample is enabled.</p></div>
           </div>
           <div className="truth-table">
             <div><span className="truth-symbol received" /><strong>Received</strong><p>Direct observation or official published record.</p></div>
@@ -125,7 +125,7 @@ export default function WikiPage() {
         <section className="wiki-section" aria-labelledby="roadmap-title">
           <div className="wiki-section-title"><span>05</span><div><p>THE WORLD AHEAD</p><h2 id="roadmap-title">From wonder layer to quiet instrument</h2></div></div>
           <div className="roadmap-river">
-            <div><span>NOW</span><h3>Watch</h3><p>Finnish and Norwegian live traffic above a four-day-delayed global cargo wake, with received trails, inferred horizons, weather spirits, sea ice, incidents, and market context.</p></div>
+            <div><span>NOW</span><h3>Remember</h3><p>A four-day-delayed global cargo wake is the primary world, with optional Nordic live traffic, weather spirits, sea ice, incidents, and market context.</p></div>
             <div><span>NEXT</span><h3>Understand</h3><p>A reciprocal AISHub receiver, cyclone tracks, durable cross-restart voyage history, port dwell time, better commodity inference, and port calls.</p></div>
             <div><span>LATER</span><h3>Act carefully</h3><p>Freight context, ETA reliability, and procurement timing—always separated from the contemplative globe.</p></div>
           </div>
@@ -143,7 +143,7 @@ export default function WikiPage() {
         </section>
       </article>
 
-      <footer className="wiki-footer"><p>THE LIVING EDGES OF GLOBAL TRADE</p><Link href="/">Open the globe</Link></footer>
+      <footer className="wiki-footer"><p>THE RECENT MEMORY OF GLOBAL TRADE</p><Link href="/">Open the globe</Link></footer>
     </main>
   );
 }
