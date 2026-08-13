@@ -75,13 +75,13 @@ const gfwVoyageCorridors: GfwVoyageCorridorSpec[] = [
     id: "east-asia",
     label: "South China Sea · Japan",
     focus: [125, 21],
-    coordinates: [[100, 10], [120, 35], [140, 48], [150, 45], [150, 35], [135, 25], [120, 5], [100, -5], [100, 10]],
+    coordinates: [[108, 5], [118, 25], [135, 43], [147, 45], [147, 35], [132, 25], [120, 8], [108, -2], [108, 5]],
   },
   {
     id: "panama-pacific",
     label: "Panama · Pacific approaches",
     focus: [-96, 11],
-    coordinates: [[-130, 25], [-100, 20], [-78, 12], [-78, 0], [-105, 5], [-130, 10], [-130, 25]],
+    coordinates: [[-110, 18], [-95, 17], [-78, 12], [-78, 3], [-95, 6], [-110, 8], [-110, 18]],
   },
 ];
 const gfwVoyageProbeCache = new Map<string, { expiresAt: number; result: GfwVoyageProbe }>();
@@ -350,7 +350,9 @@ const httpServer = createServer(async (request, response) => {
       return;
     }
     try {
-      writeJson(response, 200, await fetchGfwVoyageProbe(corridorId), "public, max-age=21600");
+      const result = await fetchGfwVoyageProbe(corridorId);
+      writeJson(response, 200, result, "public, max-age=21600");
+      setImmediate(() => (globalThis as typeof globalThis & { gc?: () => void }).gc?.());
     } catch (error) {
       writeJson(response, 502, { configured: true, message: error instanceof Error ? error.message : "GFW voyage probe unavailable" }, "no-store");
     }

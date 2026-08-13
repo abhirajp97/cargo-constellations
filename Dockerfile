@@ -8,4 +8,4 @@ COPY services ./services
 
 ENV NODE_ENV=production
 EXPOSE 10000
-CMD ["npm", "run", "ingest"]
+CMD ["node", "--expose-gc", "--import", "tsx", "services/ais-ingest.ts"]
