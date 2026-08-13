@@ -57,31 +57,31 @@ const gfwVoyageCorridors: GfwVoyageCorridorSpec[] = [
     id: "north-atlantic",
     label: "North Atlantic",
     focus: [-35, 43],
-    coordinates: [[-78, 27], [-55, 35], [-25, 44], [12, 54], [12, 65], [-25, 61], [-58, 49], [-78, 42], [-78, 27]],
+    coordinates: [[-75, 47], [-55, 52], [-25, 58], [8, 56], [8, 45], [-25, 40], [-55, 32], [-75, 35], [-75, 47]],
   },
   {
     id: "suez-arabian",
     label: "Europe · Suez · Arabian Sea",
     focus: [31, 24],
-    coordinates: [[-12, 43], [0, 46], [20, 44], [36, 34], [48, 18], [76, 19], [76, 4], [48, 7], [35, 12], [27, 29], [10, 33], [-12, 30], [-12, 43]],
+    coordinates: [[-10, 43], [20, 42], [34, 32], [45, 20], [73, 25], [73, 12], [50, 7], [38, 13], [27, 27], [10, 34], [-10, 32], [-10, 43]],
   },
   {
     id: "indian-malacca",
     label: "Indian Ocean · Malacca",
     focus: [72, 4],
-    coordinates: [[35, 12], [55, 22], [80, 17], [108, 10], [108, -7], [80, -12], [52, -10], [35, -20], [35, 12]],
+    coordinates: [[35, 18], [60, 22], [82, 18], [106, 8], [106, -3], [80, 3], [55, -8], [35, -12], [35, 18]],
   },
   {
     id: "east-asia",
     label: "South China Sea · Japan",
     focus: [125, 21],
-    coordinates: [[98, 10], [122, 32], [142, 47], [150, 45], [150, 25], [132, 15], [112, -5], [98, -8], [98, 10]],
+    coordinates: [[100, 10], [120, 35], [140, 48], [150, 45], [150, 35], [135, 25], [120, 5], [100, -5], [100, 10]],
   },
   {
     id: "panama-pacific",
     label: "Panama · Pacific approaches",
     focus: [-96, 11],
-    coordinates: [[-130, 25], [-105, 28], [-80, 16], [-63, 20], [-63, -2], [-82, -10], [-110, 2], [-130, 8], [-130, 25]],
+    coordinates: [[-130, 25], [-100, 20], [-78, 12], [-78, 0], [-105, 5], [-130, 10], [-130, 25]],
   },
 ];
 let gfwVoyageProbeCache: { expiresAt: number; result: GfwVoyageProbe } | undefined;
@@ -169,7 +169,7 @@ async function fetchGfwVoyageProbe(): Promise<GfwVoyageProbe> {
   return queueGfwReport(async () => {
     if (gfwVoyageProbeCache && gfwVoyageProbeCache.expiresAt > Date.now()) return gfwVoyageProbeCache.result;
     const end = new Date(Date.now() - 4 * 86_400_000);
-    const windowDays = 6;
+    const windowDays = 4;
     const start = new Date(end.getTime() - windowDays * 86_400_000);
     const dateRange = `${isoDate(start)},${isoDate(end)}`;
     const corridors: GfwVoyageCorridor[] = [];
@@ -243,7 +243,7 @@ async function fetchGfwVoyageProbe(): Promise<GfwVoyageProbe> {
       dateRange,
       region: "Five major shipping corridors",
       source: "Global Fishing Watch · public-global-presence:latest",
-      caveat: "Six days of hourly gridded AIS presence, not raw AIS. Lines connect observations for the same vessel; gaps between hourly cells are not exact sailed tracks.",
+      caveat: "Four days of hourly gridded AIS presence, not raw AIS. Lines connect observations for the same vessel; gaps between hourly cells are not exact sailed tracks.",
       windowDays,
       corridors,
       verdict: rankedCandidates.length >= minimumVessels && corridors.filter((corridor) => corridor.status === "live").length >= 3 ? "pass" : "fail",

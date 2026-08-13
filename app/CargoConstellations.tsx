@@ -1263,7 +1263,7 @@ export default function CargoConstellations() {
       )}
 
       <div className="map-verse" aria-hidden="true">
-        <span>FIELD I · SIX DAYS REMEMBERED</span>
+        <span>FIELD I · FOUR DAYS OF PASSAGE</span>
         <p>Long passages emerge<br />from a chain of hourly stars.</p>
       </div>
 
@@ -1272,7 +1272,7 @@ export default function CargoConstellations() {
           <p className="eyebrow">MULTI-CORRIDOR VOYAGES</p>
           <div className="primary-stat"><strong>{delayedVoyagePilot?.candidates.length.toLocaleString() ?? "···"}</strong><span>identified cargo vessels shown</span></div>
           <p className="wake-date">{delayedVoyagePilot ? <><strong>{delayedVoyagePilot.dateRange}</strong> · {delayedVoyagePilot.corridors.filter((corridor) => corridor.status === "live").length} major corridors</> : "Gathering identity-preserving observations"}</p>
-          <p className="coverage-explainer">Each colored line joins six days of hourly gridded AIS observations for one identified vessel. The view is delayed about four days; the space between observations is not an exact sailed track.</p>
+          <p className="coverage-explainer">Each colored line joins four days of hourly gridded AIS observations for one identified vessel. The view is delayed about four days; the space between observations is not an exact sailed track.</p>
           {delayedVoyagePilot && (
             <div className="corridor-switcher" aria-label="Voyage corridor focus">
               <button

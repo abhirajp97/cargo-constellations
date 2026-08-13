@@ -55,7 +55,7 @@ export default function WikiPage() {
         <section className="wiki-hero" id="purpose">
           <p className="wiki-kicker">FIELD GUIDE · VOLUME 01</p>
           <h1>A world of trade,<br /><em>made legible.</em></h1>
-          <p className="wiki-deck">Cargo Constellations is an atmospheric globe of the recent memory of ocean trade. Its primary view joins six days of identity-preserving cargo-vessel observations from approximately four days ago across five major shipping corridors, surrounded by optional live, environmental, risk, and commodity context. This guide explains what you are seeing, where it comes from, and where uncertainty begins.</p>
+          <p className="wiki-deck">Cargo Constellations is an atmospheric globe of the recent memory of ocean trade. Its primary view joins four days of identity-preserving cargo-vessel observations from approximately four days ago across five major shipping corridors, surrounded by optional live, environmental, risk, and commodity context. This guide explains what you are seeing, where it comes from, and where uncertainty begins.</p>
           <div className="wiki-hero-note">
             <span>THE CENTRAL PROMISE</span>
             <p>Every number is real, derived from a named observation, or visibly marked as demonstration data. Beauty should invite curiosity—not hide the limits of the evidence.</p>
@@ -127,7 +127,7 @@ export default function WikiPage() {
         <section className="wiki-section" aria-labelledby="roadmap-title">
           <div className="wiki-section-title"><span>05</span><div><p>THE WORLD AHEAD</p><h2 id="roadmap-title">From wonder layer to quiet instrument</h2></div></div>
           <div className="roadmap-river">
-            <div><span>NOW</span><h3>Remember</h3><p>Six-day, identity-preserving cargo histories across five major corridors are primary, with optional Nordic live traffic and contextual layers.</p></div>
+            <div><span>NOW</span><h3>Remember</h3><p>Four-day, identity-preserving cargo histories across five major corridors are primary, with optional Nordic live traffic and contextual layers.</p></div>
             <div><span>NEXT</span><h3>Understand</h3><p>Persist successive corridor windows into longer voyage histories, connect port calls, and improve cautious commodity inference.</p></div>
             <div><span>LATER</span><h3>Act carefully</h3><p>Freight context, ETA reliability, and procurement timing—always separated from the contemplative globe.</p></div>
           </div>

@@ -32,7 +32,7 @@ export type DataLayer = {
 };
 
 export const DATA_LAYERS: DataLayer[] = [
-  { id: "delayed-voyages", label: "Long cargo voyages", source: "Global Fishing Watch", status: "credential", description: "Identity-preserving cargo sequences built from six days of hourly gridded AIS presence, delayed by approximately four days across five major shipping corridors.", defaultOn: true },
+  { id: "delayed-voyages", label: "Long cargo voyages", source: "Global Fishing Watch", status: "credential", description: "Identity-preserving cargo sequences built from four days of hourly gridded AIS presence, delayed by approximately four days across five major shipping corridors.", defaultOn: true },
   { id: "live-vessels", label: "Observed Nordic vessels", source: "Fintraffic · Kystverket", status: "active", description: "Identity-preserving terrestrial AIS positions from Finland and Norway. Successive received fixes form real, regional trails.", defaultOn: true },
   { id: "world-wake", label: "Traffic memory (aggregate)", source: "Global Fishing Watch", status: "credential", description: "Optional four-day-delayed cargo-presence density. These marks are aggregate cells, never individual vessels or routes.", defaultOn: false },
   { id: "land", label: "Landmass", source: "Natural Earth", status: "active", description: "Public-domain 110m land geometry.", defaultOn: true, locked: true },
