@@ -71,8 +71,7 @@ export type WorldWakeCell = {
   date: string;
   lat: number;
   lon: number;
-  hours: number;
-  vesselIds: number;
+  intensity: number;
 };
 
 export type WorldWakeSnapshot = {
@@ -81,7 +80,7 @@ export type WorldWakeSnapshot = {
   availableThrough: string;
   delayDays: 4;
   source: string;
-  resolution: "one-degree-aggregate";
+  resolution: "sampled-heatmap";
   filter: "cargo-and-carrier";
   cells: WorldWakeCell[];
 };
@@ -118,9 +117,53 @@ export async function fetchSarDetections(websocketUrl: string): Promise<SarSnaps
   return response.json() as Promise<SarSnapshot>;
 }
 
-export async function fetchWorldWake(websocketUrl: string): Promise<WorldWakeSnapshot | null> {
-  const response = await fetch(`${relayHttpBase(websocketUrl)}/api/world-wake`);
-  if (response.status === 202) return null;
+export async function fetchWorldWake(websocketUrl: string): Promise<WorldWakeSnapshot> {
+  const base = relayHttpBase(websocketUrl);
+  const response = await fetch(`${base}/api/world-wake`);
   if (!response.ok) throw new Error(response.status === 503 ? "GFW token not configured" : "World wake unavailable");
-  return response.json() as Promise<WorldWakeSnapshot>;
+  const manifest = await response.json() as Omit<WorldWakeSnapshot, "cells"> & { zoom: number; tiles: Array<{ x: number; y: number; url: string }> };
+  const tileCells = await Promise.all(manifest.tiles.map(async (tile) => {
+    const tileResponse = await fetch(`${base}${tile.url}`);
+    if (!tileResponse.ok) throw new Error("World wake tile unavailable");
+    const bitmap = await createImageBitmap(await tileResponse.blob());
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return [] as WorldWakeCell[];
+    context.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    const cells: WorldWakeCell[] = [];
+    const scale = 2 ** manifest.zoom;
+    const step = 8;
+    for (let py = step / 2; py < canvas.height; py += step) {
+      for (let px = step / 2; px < canvas.width; px += step) {
+        const index = (Math.floor(py) * canvas.width + Math.floor(px)) * 4;
+        const red = pixels[index];
+        const green = pixels[index + 1];
+        const blue = pixels[index + 2];
+        const alpha = pixels[index + 3];
+        const intensity = alpha / 255 * ((red + green + blue) / (255 * 3));
+        if (alpha < 8 || intensity < 0.015) continue;
+        const worldX = tile.x + px / canvas.width;
+        const worldY = tile.y + py / canvas.height;
+        const lon = worldX / scale * 360 - 180;
+        const mercator = Math.PI - 2 * Math.PI * worldY / scale;
+        const lat = 180 / Math.PI * Math.atan(Math.sinh(mercator));
+        cells.push({ date: manifest.dateRange, lat, lon, intensity });
+      }
+    }
+    return cells;
+  }));
+  return {
+    observedAt: manifest.observedAt,
+    dateRange: manifest.dateRange,
+    availableThrough: manifest.availableThrough,
+    delayDays: manifest.delayDays,
+    source: manifest.source,
+    resolution: manifest.resolution,
+    filter: manifest.filter,
+    cells: tileCells.flat().sort((a, b) => b.intensity - a.intensity).slice(0, 5_000),
+  };
 }

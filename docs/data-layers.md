@@ -16,7 +16,7 @@ The interface distinguishes **active**, **key required**, and **adapter required
 | Load state | AIS draught plus vessel marks | Architecture active; live classification remains unknown without hull marks |
 | Port congestion | AIS status near known ports | Active for current counts; seven-day trend needs persistence |
 | AIS gaps | Rolling sampled relay history | Active; a gap is not labeled deliberate |
-| Global cargo wake | Global Fishing Watch AIS vessel presence | Approximately four days delayed; cargo/carrier presence aggregated to one-degree cells; not live positions |
+| Global cargo wake | Global Fishing Watch AIS vessel presence | Approximately four days delayed; cargo/carrier heatmap tiles sampled into a lightweight relative-intensity field; not live positions |
 | SAR / dark vessels | Global Fishing Watch | Relay adapter implemented; free bearer token required |
 | Sea ice | NSIDC Sea Ice Index v4 | Active daily snapshot; polar GeoTIFFs are reprojected and sampled |
 | Canal restrictions | Panama Canal Authority advisories | Active official advisory index with draft, outage and navigation notices |

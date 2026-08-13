@@ -69,7 +69,7 @@ For the hosted Site, add the same environment value in the Site settings and red
 ## Operational cautions
 
 - Keep optional AISStream scoped to its two configured bounding boxes. Full-globe commercial traffic can average hundreds of messages per second.
-- The Global Fishing Watch world wake is intentionally separate from live AIS: it aggregates cargo and carrier presence into one-degree cells from the latest day expected to be complete, approximately four days earlier.
+- The Global Fishing Watch world wake is intentionally separate from live AIS: it samples cargo and carrier presence heatmap tiles from the latest day expected to be complete, approximately four days earlier.
 - Do not run multiple relay instances against the same key until fan-out and shared state are designed for it.
 - Keep one instance initially. Horizontal scaling requires Redis or another shared store/pub-sub layer.
 - Treat a clean upstream close as recoverable.

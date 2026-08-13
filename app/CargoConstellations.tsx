@@ -328,16 +328,11 @@ export default function CargoConstellations() {
   useEffect(() => {
     if (!wsUrl || !worldWakeRequested) return;
     let stopped = false;
-    let retry: number | undefined;
     const update = () => {
       setWorldWakeStatus((current) => current === "live" ? current : "loading");
       fetchWorldWake(wsUrl)
         .then((snapshot) => {
           if (stopped) return;
-          if (!snapshot) {
-            retry = window.setTimeout(update, 15_000);
-            return;
-          }
           worldWakeRef.current = snapshot;
           setWorldWake(snapshot);
           setWorldWakeStatus("live");
@@ -349,7 +344,7 @@ export default function CargoConstellations() {
     };
     update();
     const timer = window.setInterval(update, 12 * 60 * 60 * 1000);
-    return () => { stopped = true; if (retry) window.clearTimeout(retry); window.clearInterval(timer); };
+    return () => { stopped = true; window.clearInterval(timer); };
   }, [wsUrl, worldWakeRequested]);
 
   useEffect(() => {
@@ -841,8 +836,8 @@ export default function CargoConstellations() {
           if (!visible(coords)) continue;
           const point = projection(coords);
           if (!point) continue;
-          const size = 6 + Math.min(20, Math.log2(1 + cell.hours) * 3.2);
-          context.globalAlpha = Math.min(0.72, 0.2 + Math.log10(1 + cell.hours) * 0.19);
+          const size = 6 + cell.intensity * 22;
+          context.globalAlpha = Math.min(0.76, 0.18 + cell.intensity * 1.25);
           context.drawImage(wakeSprite, point[0] - size / 2, point[1] - size / 2, size, size);
         }
         context.globalAlpha = 1;
@@ -1289,8 +1284,8 @@ export default function CargoConstellations() {
               {layers.has("world-wake") && worldWake && (
                 <div className="intel-readout wake-readout">
                   <span>GLOBAL CARGO WAKE · DELAYED</span>
-                  <strong>{worldWake.cells.length.toLocaleString()} one-degree ocean cells</strong>
-                  <small>Observed {worldWake.dateRange} · AIS presence hours for cargo and carrier vessels · not live positions</small>
+                  <strong>{worldWake.cells.length.toLocaleString()} sampled ocean signals</strong>
+                  <small>Observed {worldWake.dateRange} · relative cargo and carrier presence intensity · not live positions</small>
                 </div>
               )}
               {layers.has("commodity-prices") && intelligence && (

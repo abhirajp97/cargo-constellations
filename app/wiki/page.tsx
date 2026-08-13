@@ -19,7 +19,7 @@ const glossary = [
   ["Chokepoint", "A narrow passage—such as a canal or strait—through which a large share of trade must pass."],
   ["Listening waters", "The geographic reach of the receiver networks currently feeding this world. It is coverage, not a claim that every ship inside it will be heard."],
   ["Inferred voyage", "A pale interpretive path from the last received position toward a confidently resolved AIS destination. It is not a filed route or navigation advice."],
-  ["World wake", "A one-degree field of cargo-vessel presence observed by Global Fishing Watch about four days earlier. It is historical density, not a set of live vessel positions."],
+  ["World wake", "A low-resolution field of cargo-vessel presence observed by Global Fishing Watch about four days earlier. It is historical density, not a set of live vessel positions."],
 ];
 
 const sourceLinks = [
@@ -116,7 +116,7 @@ export default function WikiPage() {
               <li>Radar detections unmatched to AIS are interesting, but they do not prove a vessel deliberately went dark.</li>
               <li>Weather and ocean fields are models sampled across large areas; they are not readings from each ship.</li>
               <li>AIS destinations are manually entered free text. A resolved port and great-circle path are interpretive context, not a captain&apos;s filed route.</li>
-              <li>The Global Fishing Watch world wake uses one-degree aggregate presence cells observed approximately four days earlier. It cannot identify a ship&apos;s current position.</li>
+              <li>The Global Fishing Watch world wake samples a low-resolution presence heatmap observed approximately four days earlier. It cannot identify a ship&apos;s current position.</li>
               <li>Public commodity benchmarks are monthly context. They are not live quotes or trading advice.</li>
             </ul>
           </div>

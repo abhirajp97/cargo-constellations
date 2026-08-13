@@ -25,20 +25,7 @@ const dirty = new Set<string>();
 type SarDetection = { date: string; lat: number; lon: number; detections: number };
 type SarSnapshot = { observedAt: string; dateRange: string; source: string; filter: "unmatched-with-ais"; detections: SarDetection[] };
 let sarCache: { expiresAt: number; snapshot: SarSnapshot } | undefined;
-type WorldWakeCell = { date: string; lat: number; lon: number; hours: number; vesselIds: number };
-type WorldWakeSnapshot = {
-  observedAt: string;
-  dateRange: string;
-  availableThrough: string;
-  delayDays: 4;
-  source: string;
-  resolution: "one-degree-aggregate";
-  filter: "cargo-and-carrier";
-  cells: WorldWakeCell[];
-};
-let worldWakeCache: { expiresAt: number; snapshot: WorldWakeSnapshot } | undefined;
-let worldWakePromise: Promise<void> | undefined;
-let worldWakeError: string | undefined;
+const worldWakeTileCache = new Map<string, { expiresAt: number; contentType: string; data: Buffer }>();
 let gfwReportQueue: Promise<void> = Promise.resolve();
 
 function queueGfwReport<T>(task: () => Promise<T>): Promise<T> {
@@ -116,78 +103,46 @@ async function fetchSarSnapshot(): Promise<SarSnapshot> {
   });
 }
 
-async function fetchWorldWakeSnapshot(): Promise<WorldWakeSnapshot> {
-  if (!gfwApiToken) throw new Error("GFW_API_TOKEN is not configured");
-  if (worldWakeCache && worldWakeCache.expiresAt > Date.now()) return worldWakeCache.snapshot;
-  return queueGfwReport(async () => {
-  if (worldWakeCache && worldWakeCache.expiresAt > Date.now()) return worldWakeCache.snapshot;
+function worldWakeManifest() {
   const end = new Date(Date.now() - 4 * 86_400_000);
   const start = new Date(end.getTime() - 86_400_000);
   const dateRange = `${isoDate(start)},${isoDate(end)}`;
-  const url = new URL("https://gateway.api.globalfishingwatch.org/v3/4wings/report");
-  url.searchParams.set("spatial-resolution", "LOW");
-  url.searchParams.set("temporal-resolution", "ENTIRE");
-  url.searchParams.set("spatial-aggregation", "false");
-  url.searchParams.set("datasets[0]", "public-global-presence:latest");
-  url.searchParams.set("filters[0]", 'vessel_type in ("cargo","carrier")');
-  url.searchParams.set("date-range", dateRange);
-  url.searchParams.set("format", "JSON");
-  const source = await fetch(url, {
-    method: "POST",
-    headers: { authorization: `Bearer ${gfwApiToken}`, "content-type": "application/json" },
-    body: JSON.stringify({
-      geojson: {
-        type: "Polygon",
-        coordinates: [[[-179.9, -75], [179.9, -75], [179.9, 85], [-179.9, 85], [-179.9, -75]]],
-      },
-    }),
-  });
-  const report = await readGfwReport(source);
-  const cells = new Map<string, WorldWakeCell>();
-  for (const item of (report.entries ?? []).flatMap((entry) => Object.values(entry).flat())) {
-    const lat = Number(item.lat);
-    const lon = Number(item.lon);
-    const hours = Number(item.hours);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(hours) || hours <= 0) continue;
-    const cellLat = Math.floor(lat) + 0.5;
-    const cellLon = Math.floor(lon) + 0.5;
-    const key = `${cellLon},${cellLat}`;
-    const existing = cells.get(key);
-    if (existing) {
-      existing.hours += hours;
-      existing.vesselIds += Number(item.vesselIDs ?? item.vesselIds ?? 0);
-    } else {
-      cells.set(key, {
-        date: String(item.date ?? dateRange),
-        lat: cellLat,
-        lon: cellLon,
-        hours,
-        vesselIds: Number(item.vesselIDs ?? item.vesselIds ?? 0),
-      });
-    }
-  }
-  const snapshot: WorldWakeSnapshot = {
+  return {
     observedAt: new Date().toISOString(),
     dateRange,
     availableThrough: isoDate(end),
-    delayDays: 4,
+    delayDays: 4 as const,
     source: "Global Fishing Watch · AIS vessel presence",
-    resolution: "one-degree-aggregate",
-    filter: "cargo-and-carrier",
-    cells: [...cells.values()].sort((a, b) => b.hours - a.hours).slice(0, 5_000),
+    resolution: "sampled-heatmap" as const,
+    filter: "cargo-and-carrier" as const,
+    zoom: 2,
+    tiles: Array.from({ length: 4 }, (_, y) => Array.from({ length: 4 }, (_, x) => ({ x, y, url: `/api/world-wake-tile?x=${x}&y=${y}` }))).flat(),
   };
-  worldWakeCache = { expiresAt: Date.now() + 12 * 60 * 60 * 1000, snapshot };
-  return snapshot;
-  });
 }
 
-function prepareWorldWake() {
-  if (worldWakePromise || (worldWakeCache && worldWakeCache.expiresAt > Date.now())) return;
-  worldWakeError = undefined;
-  worldWakePromise = fetchWorldWakeSnapshot()
-    .then(() => undefined)
-    .catch((error) => { worldWakeError = error instanceof Error ? error.message : "world wake unavailable"; })
-    .finally(() => { worldWakePromise = undefined; });
+async function fetchWorldWakeTile(x: number, y: number) {
+  if (!gfwApiToken) throw new Error("GFW_API_TOKEN is not configured");
+  const manifest = worldWakeManifest();
+  const key = `${manifest.dateRange}:${x}:${y}`;
+  const cached = worldWakeTileCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached;
+  const url = new URL(`https://gateway.api.globalfishingwatch.org/v3/4wings/tile/heatmap/${manifest.zoom}/${x}/${y}`);
+  url.searchParams.set("format", "PNG");
+  url.searchParams.set("interval", "DAY");
+  url.searchParams.set("temporal-aggregation", "true");
+  url.searchParams.set("datasets[0]", "public-global-presence:latest");
+  url.searchParams.set("filters[0]", 'vessel_type in ("cargo","carrier")');
+  url.searchParams.set("date-range", manifest.dateRange);
+  url.searchParams.set("style", "eyJjb2xvciI6WzM0LDEzOSwzNF0sInJhbXAiOlswLDc4LDEzNCwyMzQsNDU2LDc4OSwxMTIzLDE1NjcsMjEzNF19");
+  const source = await fetch(url, { headers: { authorization: `Bearer ${gfwApiToken}` } });
+  if (!source.ok) throw new Error(`GFW world-wake tile failed (${source.status})`);
+  const tile = {
+    expiresAt: Date.now() + 12 * 60 * 60 * 1000,
+    contentType: source.headers.get("content-type") ?? "image/png",
+    data: Buffer.from(await source.arrayBuffer()),
+  };
+  worldWakeTileCache.set(key, tile);
+  return tile;
 }
 
 const httpServer = createServer(async (request, response) => {
@@ -223,10 +178,9 @@ const httpServer = createServer(async (request, response) => {
       kystverketFrames,
       acceptedKystverketFrames,
       lastKystverketFrameAt,
-      worldWake: !gfwApiToken ? "disabled" : worldWakeCache ? "ready" : worldWakePromise ? "preparing" : worldWakeError ? "error" : "idle",
-      worldWakeError,
-      worldWakeCells: worldWakeCache?.snapshot.cells.length ?? 0,
-      worldWakeAvailableThrough: worldWakeCache?.snapshot.availableThrough,
+      worldWake: !gfwApiToken ? "disabled" : "tile-proxy-ready",
+      worldWakeCachedTiles: worldWakeTileCache.size,
+      worldWakeAvailableThrough: gfwApiToken ? worldWakeManifest().availableThrough : undefined,
       vessels: vessels.size,
       clients: downstream.clients.size,
       now: new Date().toISOString(),
@@ -250,12 +204,28 @@ const httpServer = createServer(async (request, response) => {
       writeJson(response, 503, { configured: false, message: "Global Fishing Watch token not configured" });
       return;
     }
-    if (worldWakeCache && worldWakeCache.expiresAt > Date.now()) {
-      writeJson(response, 200, worldWakeCache.snapshot);
+    writeJson(response, 200, worldWakeManifest(), "public, max-age=3600");
+    return;
+  }
+  if (request.url?.startsWith("/api/world-wake-tile")) {
+    if (!gfwApiToken) {
+      writeJson(response, 503, { configured: false, message: "Global Fishing Watch token not configured" });
       return;
     }
-    prepareWorldWake();
-    writeJson(response, 202, { configured: true, status: "preparing", message: worldWakeError }, "no-store");
+    const tileUrl = new URL(request.url, "http://relay.local");
+    const x = Number(tileUrl.searchParams.get("x"));
+    const y = Number(tileUrl.searchParams.get("y"));
+    if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x > 3 || y < 0 || y > 3) {
+      writeJson(response, 400, { message: "Invalid world-wake tile" }, "no-store");
+      return;
+    }
+    try {
+      const tile = await fetchWorldWakeTile(x, y);
+      response.writeHead(200, { "content-type": tile.contentType, "cache-control": "public, max-age=43200" });
+      response.end(tile.data);
+    } catch (error) {
+      writeJson(response, 502, { message: error instanceof Error ? error.message : "World wake tile unavailable" }, "no-store");
+    }
     return;
   }
   response.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
