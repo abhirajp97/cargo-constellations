@@ -21,6 +21,7 @@ export type Vessel = {
   destination?: string;
   draught?: number;
   eta?: string;
+  provider?: string;
   loadState?: "laden" | "ballast" | "unknown";
   commodity?: Commodity;
   source: "live" | "mock";
@@ -90,6 +91,10 @@ const number = (value: unknown, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const TRAIL_WINDOW_MS = 24 * 60 * 60 * 1000;
+const LIVE_TRAIL_SAMPLE_MS = 60_000;
+const MAX_TRAIL_POINTS = 1_440;
+
 const text = (value: unknown) => {
   if (typeof value !== "string") return undefined;
   const cleaned = value.trim();
@@ -124,6 +129,7 @@ export function mergeAisEnvelope(
     ? { ...current }
     : { mmsi, flag: flagFromMmsi(mmsi), source, trail: [] };
   vessel.source = source;
+  vessel.provider = text(envelope.MetaData?.Provider) ?? vessel.provider;
 
   if (["PositionReport", "StandardClassBPositionReport", "ExtendedClassBPositionReport"].includes(envelope.MessageType)) {
     const lat = number(payload.Latitude, NaN);
@@ -142,10 +148,13 @@ export function mergeAisEnvelope(
     if (!Number.isFinite(fix.heading)) delete fix.heading;
     if (!Number.isFinite(fix.reportedAt)) delete fix.reportedAt;
 
-    const trail = [...vessel.trail];
+    const trail = vessel.trail.filter((point) => point[2] >= receivedAt - TRAIL_WINDOW_MS);
     const prior = trail.at(-1);
-    if (!prior || prior[0] !== lon || prior[1] !== lat) trail.push([lon, lat, receivedAt]);
-    if (trail.length > 90) trail.splice(0, trail.length - 90);
+    const sampleInterval = source === "mock" ? 1_000 : LIVE_TRAIL_SAMPLE_MS;
+    if (!prior || (receivedAt - prior[2] >= sampleInterval && (prior[0] !== lon || prior[1] !== lat))) {
+      trail.push([lon, lat, receivedAt]);
+    }
+    if (trail.length > MAX_TRAIL_POINTS) trail.splice(0, trail.length - MAX_TRAIL_POINTS);
     vessel.lastFix = fix;
     vessel.trail = trail;
     if (!vessel.renderedPosition) vessel.renderedPosition = [lon, lat];

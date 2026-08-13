@@ -12,9 +12,10 @@ import {
   type Commodity,
   type Vessel,
 } from "../lib/ais";
-import { CHOKEPOINTS, PORTS, createMockAisSource } from "../lib/mock-ais";
+import { CHOKEPOINTS, createMockAisSource } from "../lib/mock-ais";
 import { ENVIRONMENT_SAMPLES, fetchEnvironment, type EnvironmentPoint } from "../lib/environment";
 import { DATA_LAYERS, defaultLayerSet, type LayerId } from "../lib/layers";
+import { PORT_SANCTUARIES, resolveDestination, type PortSanctuary } from "../lib/ports";
 import {
   fetchSarDetections,
   fetchStaticIntelligence,
@@ -45,6 +46,7 @@ const AIS_WEBSOCKET_URL = process.env.NEXT_PUBLIC_AIS_WEBSOCKET_URL || DEFAULT_A
 const LIVE_GRACE_PERIOD_MS = 45_000;
 
 const LAYER_GUIDE: Partial<Record<LayerId, { color: string; cue: string; focus?: [number, number] }>> = {
+  coverage: { color: "#9FCDB9", cue: "Soft washes reveal where the current public receiver networks can hear ships.", focus: [-15, -57] },
   bathymetry: { color: "#4B8F9D", cue: "Nested blue contours show depth bands beneath the ocean." },
   routes: { color: "#E9C46A", cue: "Gold dotted paths are computed sea routes, not live vessel tracks." },
   "day-night": { color: "#8CB8E8", cue: "The shaded hemisphere is night; its edge follows the real UTC sun." },
@@ -64,6 +66,12 @@ const LAYER_GUIDE: Partial<Record<LayerId, { color: string; cue: string; focus?:
 
 type LandGeometry = ReturnType<typeof feature> | null;
 type BathymetryGeometry = { depth: number; geometry: LandGeometry };
+
+const COVERAGE_FIELDS = [
+  { type: "Feature", properties: { provider: "Fintraffic" }, geometry: { type: "Polygon", coordinates: [[[15.2, 55.1], [31.2, 55.1], [31.2, 66.4], [15.2, 66.4], [15.2, 55.1]]] } },
+  { type: "Feature", properties: { provider: "Kystverket" }, geometry: { type: "Polygon", coordinates: [[[-6, 56], [5, 54.5], [14, 57], [31, 67], [33, 72], [17, 73], [3, 68], [-6, 62], [-6, 56]]] } },
+  { type: "Feature", properties: { provider: "Kystverket" }, geometry: { type: "Polygon", coordinates: [[[-12, 72], [38, 72], [38, 82], [-12, 82], [-12, 72]]] } },
+] as const;
 
 function rgba(hex: string, alpha: number) {
   const value = hex.replace("#", "");
@@ -85,6 +93,32 @@ function formatCoordinate(value: number, positive: string, negative: string) {
 
 function formatPrice(value: number) {
   return value >= 100 ? value.toLocaleString("en-US", { maximumFractionDigits: 0 }) : value.toFixed(2);
+}
+
+function trailDistanceNm(trail: Vessel["trail"]) {
+  let total = 0;
+  for (let index = 1; index < trail.length; index += 1) {
+    total += d3.geoDistance([trail[index - 1][0], trail[index - 1][1]], [trail[index][0], trail[index][1]]) * 3440.065;
+  }
+  return total;
+}
+
+function formatTrailDuration(trail: Vessel["trail"]) {
+  if (trail.length < 2) return "gathering fixes";
+  const minutes = Math.max(1, Math.round((trail.at(-1)![2] - trail[0][2]) / 60_000));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = minutes / 60;
+  return hours < 10 ? `${hours.toFixed(1)} hr` : `${Math.round(hours)} hr`;
+}
+
+function voyageWeather(vessel: Vessel | undefined, destination: PortSanctuary | undefined, samples: EnvironmentPoint[]) {
+  if (!vessel?.lastFix || !samples.length) return undefined;
+  const origin: [number, number] = [vessel.lastFix.lon, vessel.lastFix.lat];
+  const target = destination?.coords ?? origin;
+  const midpoint = d3.geoInterpolate(origin, target)(0.5) as [number, number];
+  return samples.reduce((nearest, sample) =>
+    d3.geoDistance(midpoint, sample.coords) < d3.geoDistance(midpoint, nearest.coords) ? sample : nearest,
+  );
 }
 
 function sunPosition(date: Date): [number, number] {
@@ -126,7 +160,7 @@ export default function CargoConstellations() {
   const shellRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const storeRef = useRef(new Map<string, Vessel>());
-  const rotationRef = useRef<[number, number]>([-18, -18]);
+  const rotationRef = useRef<[number, number]>([-15, -57]);
   const draggingRef = useRef(false);
   const movedRef = useRef(false);
   const pointerRef = useRef<[number, number]>([0, 0]);
@@ -154,13 +188,14 @@ export default function CargoConstellations() {
   const wsUrl = AIS_WEBSOCKET_URL;
   const [connection, setConnection] = useState<"demo" | "connecting" | "live" | "offline">(wsUrl ? "connecting" : "demo");
   const [environmentStatus, setEnvironmentStatus] = useState<"loading" | "live" | "offline">("loading");
+  const [environment, setEnvironment] = useState<EnvironmentPoint[]>(ENVIRONMENT_SAMPLES);
   const [intelligenceStatus, setIntelligenceStatus] = useState<"loading" | "live" | "offline">("loading");
   const [sarStatus, setSarStatus] = useState<"key" | "loading" | "live" | "offline">(wsUrl ? "loading" : "key");
   const [intelligence, setIntelligence] = useState<StaticIntelligence | null>(null);
   const [sar, setSar] = useState<SarSnapshot | null>(null);
   const [soundOn, setSoundOn] = useState(false);
   const [layerMoment, setLayerMoment] = useState<{ id: LayerId; enabled: boolean } | null>(null);
-  const [stats, setStats] = useState({ vessels: 0, moving: 0, laden: 0, anchors: 0, gaps: 0, counts: EMPTY_COUNTS });
+  const [stats, setStats] = useState({ vessels: 0, moving: 0, laden: 0, anchors: 0, gaps: 0, fintraffic: 0, kystverket: 0, counts: EMPTY_COUNTS });
 
   useEffect(() => { autoRotateRef.current = autoRotate; }, [autoRotate]);
   useEffect(() => { filterRef.current = filters; }, [filters]);
@@ -293,6 +328,7 @@ export default function CargoConstellations() {
         .then((points) => {
           if (stopped) return;
           environmentRef.current = points;
+          setEnvironment(points);
           setEnvironmentStatus("live");
         })
         .catch(() => { if (!stopped) setEnvironmentStatus("offline"); });
@@ -348,18 +384,18 @@ export default function CargoConstellations() {
             if (vessel.lastFix) receivedPosition = true;
             const existing = storeRef.current.get(vessel.mmsi);
             const nextTrail = [...(existing?.trail ?? [])];
-            if (vessel.lastFix) {
+            for (const point of vessel.trail ?? []) {
               const last = nextTrail.at(-1);
-              if (!last || last[0] !== vessel.lastFix.lon || last[1] !== vessel.lastFix.lat) {
-                nextTrail.push([vessel.lastFix.lon, vessel.lastFix.lat, vessel.lastFix.receivedAt]);
-              }
-              if (nextTrail.length > 90) nextTrail.splice(0, nextTrail.length - 90);
+              if (last?.[2] === point[2]) nextTrail[nextTrail.length - 1] = point;
+              else if (!last || point[2] > last[2]) nextTrail.push(point);
             }
+            const trailCutoff = Date.now() - 24 * 60 * 60 * 1000;
+            const recentTrail = nextTrail.filter((point) => point[2] >= trailCutoff).slice(-1440);
             storeRef.current.set(vessel.mmsi, {
               ...existing,
               ...vessel,
               source: "live",
-              trail: nextTrail,
+              trail: recentTrail,
               renderedPosition: existing?.renderedPosition,
             });
           }
@@ -398,6 +434,8 @@ export default function CargoConstellations() {
         laden: vessels.filter((vessel) => vessel.loadState === "laden").length,
         anchors: vessels.filter((vessel) => [1, 5].includes(vessel.lastFix?.navStatus ?? -1)).length,
         gaps: vessels.filter((vessel) => vessel.lastFix && now - vessel.lastFix.receivedAt >= 600_000).length,
+        fintraffic: vessels.filter((vessel) => vessel.provider?.includes("Fintraffic")).length,
+        kystverket: vessels.filter((vessel) => vessel.provider?.includes("Kystverket")).length,
         counts,
       });
       setSelected(selectedMmsi ? storeRef.current.get(selectedMmsi) : undefined);
@@ -477,6 +515,22 @@ export default function CargoConstellations() {
       context.globalCompositeOperation = "source-over";
       context.restore();
 
+      if (layerRef.current.has("coverage")) {
+        for (const field of COVERAGE_FIELDS) {
+          context.beginPath();
+          path(field as never);
+          const norwegian = field.properties.provider === "Kystverket";
+          context.fillStyle = norwegian ? "rgba(116, 178, 168, 0.075)" : "rgba(224, 182, 104, 0.07)";
+          context.fill();
+          context.setLineDash([2, 8]);
+          context.lineCap = "round";
+          context.strokeStyle = norwegian ? "rgba(157, 211, 191, 0.24)" : "rgba(233, 191, 112, 0.24)";
+          context.lineWidth = 0.85;
+          context.stroke();
+          context.setLineDash([]);
+        }
+      }
+
       if (layerRef.current.has("bathymetry")) {
         const depthColors: Record<number, string> = {
           200: "rgba(131, 167, 157, 0.18)",
@@ -539,6 +593,32 @@ export default function CargoConstellations() {
         context.setLineDash([]);
       }
 
+      const focusedVessel = selectedMmsi ? storeRef.current.get(selectedMmsi) : undefined;
+      const inferredDestination = resolveDestination(focusedVessel?.destination);
+      if (focusedVessel?.lastFix && inferredDestination) {
+        const origin: [number, number] = [focusedVessel.lastFix.lon, focusedVessel.lastFix.lat];
+        const interpolate = d3.geoInterpolate(origin, inferredDestination.coords);
+        const inferredRoute = {
+          type: "LineString",
+          coordinates: Array.from({ length: 49 }, (_, index) => interpolate(index / 48)),
+        };
+        context.save();
+        context.beginPath();
+        path(inferredRoute as never);
+        context.strokeStyle = "rgba(236, 207, 148, 0.12)";
+        context.lineWidth = 8;
+        context.lineCap = "round";
+        context.stroke();
+        context.beginPath();
+        path(inferredRoute as never);
+        context.setLineDash([10, 5, 2, 5]);
+        context.lineDashOffset = -(now / 180) % 22;
+        context.strokeStyle = "rgba(242, 215, 162, 0.72)";
+        context.lineWidth = 1.5;
+        context.stroke();
+        context.restore();
+      }
+
       if (layerRef.current.has("day-night")) {
         const sun = sunPosition(new Date());
         const nightCenter: [number, number] = [((sun[0] + 180 + 540) % 360) - 180, -sun[1]];
@@ -562,29 +642,41 @@ export default function CargoConstellations() {
           const waveRadius = 3 + Math.min(sample.waveHeightM, 8) * 1.35;
           context.save();
           context.translate(point[0], point[1]);
-          context.rotate(-0.35);
-          context.beginPath();
-          context.arc(0, 0, waveRadius, Math.PI * 0.05, Math.PI * 0.9);
-          context.strokeStyle = "rgba(185, 216, 227, 0.62)";
-          context.lineWidth = 1.15;
-          context.stroke();
+          context.rotate(((sample.waveDirection ?? 290) - 90) * Math.PI / 180);
+          for (let crest = 0; crest < 3; crest += 1) {
+            const phase = (now / 900 + crest * 2.1) % 6;
+            context.beginPath();
+            context.arc(-phase, crest * 2.4 - 2.4, waveRadius + phase, Math.PI * 0.08, Math.PI * 0.88);
+            context.strokeStyle = `rgba(190, 219, 226, ${0.5 - crest * 0.11})`;
+            context.lineWidth = 0.9 + crest * 0.25;
+            context.stroke();
+          }
           context.restore();
         }
         if (layerRef.current.has("winds") && sample.windDirection !== undefined && sample.windSpeedKn !== undefined) {
           const direction = (sample.windDirection + 180) * Math.PI / 180;
           const length = 5 + Math.min(sample.windSpeedKn, 40) * 0.3;
-          const drift = (now / 55) % Math.max(1, length);
-          const x0 = point[0] - Math.sin(direction) * (length / 2 - drift * 0.15);
-          const y0 = point[1] + Math.cos(direction) * (length / 2 - drift * 0.15);
-          const x1 = x0 + Math.sin(direction) * length;
-          const y1 = y0 - Math.cos(direction) * length;
-          context.beginPath();
-          context.moveTo(x0, y0);
-          context.quadraticCurveTo((x0 + x1) / 2 + Math.cos(direction) * 2.2, (y0 + y1) / 2 + Math.sin(direction) * 2.2, x1, y1);
-          context.strokeStyle = "rgba(232, 233, 202, 0.74)";
-          context.lineWidth = 1.25;
-          context.lineCap = "round";
-          context.stroke();
+          for (let wisp = 0; wisp < 3; wisp += 1) {
+            const drift = ((now / (64 + wisp * 9)) + wisp * 4.1) % Math.max(1, length * 1.6);
+            const lateral = (wisp - 1) * 3.2;
+            const x0 = point[0] - Math.sin(direction) * (length / 2 - drift * 0.22) + Math.cos(direction) * lateral;
+            const y0 = point[1] + Math.cos(direction) * (length / 2 - drift * 0.22) + Math.sin(direction) * lateral;
+            const x1 = x0 + Math.sin(direction) * length;
+            const y1 = y0 - Math.cos(direction) * length;
+            context.beginPath();
+            context.moveTo(x0, y0);
+            context.bezierCurveTo(
+              x0 + Math.sin(direction) * length * 0.35 + Math.cos(direction) * 3.2,
+              y0 - Math.cos(direction) * length * 0.35 + Math.sin(direction) * 3.2,
+              x0 + Math.sin(direction) * length * 0.72 - Math.cos(direction) * 2.1,
+              y0 - Math.cos(direction) * length * 0.72 - Math.sin(direction) * 2.1,
+              x1, y1,
+            );
+            context.strokeStyle = `rgba(235, 229, 194, ${0.72 - wisp * 0.16})`;
+            context.lineWidth = 1.35 - wisp * 0.2;
+            context.lineCap = "round";
+            context.stroke();
+          }
         }
         if (layerRef.current.has("currents") && sample.currentDirection !== undefined && sample.currentSpeedKmh !== undefined) {
           const direction = sample.currentDirection * Math.PI / 180;
@@ -599,6 +691,12 @@ export default function CargoConstellations() {
           context.strokeStyle = "rgba(116, 210, 184, 0.68)";
           context.lineWidth = 1.65;
           context.lineCap = "round";
+          context.stroke();
+          const spirit = 2.5 + Math.sin(now / 620 + point[0]) * 1.1;
+          context.beginPath();
+          context.arc(currentX1, currentY1, spirit, direction - 1.8, direction + 1.1);
+          context.strokeStyle = "rgba(140, 222, 196, 0.42)";
+          context.lineWidth = 0.8;
           context.stroke();
         }
       }
@@ -671,14 +769,18 @@ export default function CargoConstellations() {
           const p0 = projection([first[0], first[1]]);
           const p1 = projection([second[0], second[1]]);
           if (!p0 || !p1) continue;
-          const freshness = Math.max(0.03, 1 - (Date.now() - second[2]) / 120_000);
+          const selectedTrail = selectedMmsi === vessel.mmsi;
+          const freshness = Math.max(0.12, 1 - (Date.now() - second[2]) / 86_400_000);
           context.beginPath();
           context.moveTo(p0[0], p0[1]);
           context.lineTo(p1[0], p1[1]);
-          context.strokeStyle = rgba(color, freshness * 0.58);
-          context.lineWidth = 1.15;
+          context.strokeStyle = selectedTrail ? `rgba(244, 205, 129, ${Math.min(0.95, freshness + 0.2)})` : rgba(color, freshness * 0.72);
+          context.lineWidth = selectedTrail ? 2.5 : 1.05;
           context.lineCap = "round";
+          context.shadowColor = selectedTrail ? "rgba(240, 183, 87, 0.58)" : rgba(color, 0.18);
+          context.shadowBlur = selectedTrail ? 8 : 2;
           context.stroke();
+          context.shadowBlur = 0;
         }
       }
 
@@ -720,25 +822,41 @@ export default function CargoConstellations() {
         }
       }
 
-      for (const port of PORTS) {
+      for (const port of PORT_SANCTUARIES) {
         if (!visible(port.coords)) continue;
         const point = projection(port.coords);
         if (!point) continue;
+        const isHorizon = inferredDestination?.locode === port.locode;
+        const pulse = 7 + Math.sin(now / 900 + port.coords[0]) * 1.4;
+        context.save();
+        context.translate(point[0], point[1]);
+        context.rotate(Math.PI / 4);
         context.beginPath();
-        context.moveTo(point[0], point[1] - 4.3);
-        context.lineTo(point[0] + 1.4, point[1] - 1.2);
-        context.lineTo(point[0] + 4.3, point[1]);
-        context.lineTo(point[0] + 1.4, point[1] + 1.2);
-        context.lineTo(point[0], point[1] + 4.3);
-        context.lineTo(point[0] - 1.4, point[1] + 1.2);
-        context.lineTo(point[0] - 4.3, point[1]);
-        context.lineTo(point[0] - 1.4, point[1] - 1.2);
+        context.arc(0, 0, isHorizon ? pulse + 4 : pulse, 0.15, Math.PI * 1.52);
+        context.strokeStyle = rgba(port.accent, isHorizon ? 0.84 : 0.35);
+        context.lineWidth = isHorizon ? 1.45 : 0.75;
+        context.stroke();
+        context.beginPath();
+        context.moveTo(0, -4.3);
+        context.lineTo(1.4, -1.2);
+        context.lineTo(4.3, 0);
+        context.lineTo(1.4, 1.2);
+        context.lineTo(0, 4.3);
+        context.lineTo(-1.4, 1.2);
+        context.lineTo(-4.3, 0);
+        context.lineTo(-1.4, -1.2);
         context.closePath();
-        context.fillStyle = "#F7D88F";
-        context.shadowColor = "#F7D88F";
-        context.shadowBlur = 12;
+        context.fillStyle = port.accent;
+        context.shadowColor = port.accent;
+        context.shadowBlur = isHorizon ? 22 : 12;
         context.fill();
+        context.restore();
         context.shadowBlur = 0;
+        if (isHorizon || zoomRef.current > 1.42) {
+          context.fillStyle = "rgba(242, 222, 179, 0.82)";
+          context.font = `${isHorizon ? 10 : 8}px Georgia, serif`;
+          context.fillText(port.name, point[0] + 11, point[1] - 8);
+        }
         if (layerRef.current.has("port-congestion")) {
           const nearby = vessels.filter((vessel) => {
             if (!vessel.lastFix || ![1, 5].includes(vessel.lastFix.navStatus)) return false;
@@ -891,6 +1009,15 @@ export default function CargoConstellations() {
     () => clock.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "UTC", hour12: false }),
     [clock],
   );
+  const selectedDestination = useMemo(() => resolveDestination(selected?.destination), [selected?.destination]);
+  const selectedTrailNm = useMemo(() => trailDistanceNm(selected?.trail ?? []), [selected?.trail]);
+  const selectedWeather = useMemo(
+    () => voyageWeather(selected, selectedDestination, environment),
+    [selected, selectedDestination, environment],
+  );
+  const inferredDistanceNm = selected?.lastFix && selectedDestination
+    ? d3.geoDistance([selected.lastFix.lon, selected.lastFix.lat], selectedDestination.coords) * 3440.065
+    : undefined;
 
   return (
     <main className="app-shell" ref={shellRef}>
@@ -929,7 +1056,7 @@ export default function CargoConstellations() {
 
       <div className={`source-banner ${connection}`}>
         <span className="status-dot" />
-        {connection === "live" ? "LIVE VOYAGES · AIS" : connection === "connecting" ? "AWAKENING THE HARBORS" : connection === "offline" ? "AIS RELAY SLEEPING" : "STORYBOOK DEMO · SYNTHETIC AIS"}
+        {connection === "live" ? "LIVE VOYAGES · FINLAND + NORWAY" : connection === "connecting" ? "AWAKENING THE HARBORS" : connection === "offline" ? "AIS RELAY SLEEPING" : "STORYBOOK DEMO · SYNTHETIC AIS"}
       </div>
 
       <div className="map-verse" aria-hidden="true">
@@ -941,6 +1068,7 @@ export default function CargoConstellations() {
         <section className="rail-section overview">
           <p className="eyebrow">VISIBLE VOYAGERS</p>
           <div className="primary-stat"><strong>{stats.vessels}</strong><span>vessels reporting</span></div>
+          <p className="coverage-readout"><span>{stats.fintraffic}</span> Finnish waters <i /> <span>{stats.kystverket}</span> Norwegian waters</p>
           <div className="mini-grid">
             <div><strong>{stats.moving}</strong><span>under way</span></div>
             <div><strong>{stats.laden || "—"}</strong><span>{connection === "demo" ? "laden (sim)" : "laden est."}</span></div>
@@ -1005,7 +1133,7 @@ export default function CargoConstellations() {
               );
             })}
           </div>
-          <p className="layer-footnote">Daily and monthly snapshots show their observation date. “Key” means the relay still needs a free provider token.</p>
+          <p className="layer-footnote">Listening waters show the honest reach of the free receivers. Daily and monthly layers show their observation date.</p>
 
           {intelligence && ["sea-ice", "canal-restrictions", "piracy", "commodity-prices", "dark-vessels"].some((id) => layers.has(id as LayerId)) && (
             <div className="intelligence-readouts" aria-label="Active intelligence layer details">
@@ -1062,10 +1190,11 @@ export default function CargoConstellations() {
 
         <section className="rail-section rail-note">
           <p className="eyebrow">TRAVELER&apos;S KEY</p>
-          <p>Ports burn as fixed stars. Moving vessels leave received-fix trails; the light between fixes is dead-reckoned for no more than ten minutes.</p>
+          <p>Ports burn as sanctuaries. Solid light is received history; a pale brush-path toward a named port is inferred from AIS destination text.</p>
           <div className="truth-key"><span className="solid-line" />Received AIS</div>
-          <div className="truth-key"><span className="dotted-line" />Rendered motion</div>
-          <small>Finnish AIS: Fintraffic / digitraffic.fi · CC BY 4.0</small>
+          <div className="truth-key"><span className="brush-line" />Inferred horizon</div>
+          <div className="truth-key"><span className="dotted-line" />Reference corridor</div>
+          <small>Fintraffic · CC BY 4.0 · Kystverket · NLOD</small>
         </section>
       </aside>
 
@@ -1094,30 +1223,59 @@ export default function CargoConstellations() {
       </div>
 
       {selected && selected.lastFix && (
-        <section className="vessel-card" aria-live="polite">
+        <section className="vessel-card voyage-scroll" aria-live="polite">
           <button className="card-close" type="button" onClick={() => { setSelectedMmsi(null); setSelected(undefined); }} aria-label="Close vessel details">×</button>
           <div className="card-topline">
             <span className="vessel-signal" style={{ "--signal": COLORS[selected.commodity ?? "unknown"] } as React.CSSProperties} />
-            <p>{selected.source === "live" ? "AIS VESSEL" : "SYNTHETIC AIS VESSEL"}</p>
+            <p>{selected.source === "live" ? "LIVE VOYAGE SCROLL" : "SYNTHETIC VOYAGE SCROLL"}</p>
           </div>
           <h2>{selected.name || `MMSI ${selected.mmsi}`}</h2>
-          <p className="vessel-id">MMSI {selected.mmsi} · {selected.flag}</p>
+          <p className="vessel-id">MMSI {selected.mmsi} · {selected.flag} · {selected.provider?.includes("Kystverket") ? "NORWEGIAN WATERS" : selected.provider?.includes("Fintraffic") ? "FINNISH WATERS" : "AIS"}</p>
           <div className="coordinates">
             <span>{formatCoordinate(selected.lastFix.lat, "N", "S")}</span>
             <span>{formatCoordinate(selected.lastFix.lon, "E", "W")}</span>
           </div>
-          <div className="detail-grid">
-            <div><small>SPEED OVER GROUND</small><strong>{selected.lastFix.sog.toFixed(1)} <em>kn</em></strong></div>
-            <div><small>COURSE</small><strong>{Math.round(selected.lastFix.cog)}° <em>true</em></strong></div>
-            <div><small>NAVIGATION</small><strong className="text-value">{navStatusLabel(selected.lastFix.navStatus)}</strong></div>
-            <div><small>LAST RECEIVED</small><strong className="text-value">{formatAge(clock.getTime() - selected.lastFix.receivedAt)}</strong></div>
+
+          <div className="scroll-chapter received-chapter">
+            <div className="chapter-heading"><span>I</span><div><small>RECEIVED CHRONICLE</small><strong>{formatTrailDuration(selected.trail)} of observed passage</strong></div></div>
+            <div className="chronicle-line"><i style={{ width: `${Math.min(100, 12 + selected.trail.length / 5)}%` }} /></div>
+            <div className="chronicle-facts">
+              <div><small>FIXES KEPT</small><strong>{selected.trail.length}</strong></div>
+              <div><small>DISTANCE DRAWN</small><strong>{selectedTrailNm < 10 ? selectedTrailNm.toFixed(1) : Math.round(selectedTrailNm)} <em>nm</em></strong></div>
+              <div><small>NOW MAKING</small><strong>{selected.lastFix.sog.toFixed(1)} <em>kn</em></strong></div>
+            </div>
           </div>
+
+          <div className={`scroll-chapter horizon-chapter ${selectedDestination ? "resolved" : "unresolved"}`}>
+            <div className="chapter-heading"><span>II</span><div><small>INFERRED HORIZON</small><strong>{selectedDestination?.name ?? "The destination is still a riddle"}</strong></div></div>
+            {selectedDestination ? (
+              <div className="sanctuary-copy">
+                <i style={{ "--sanctuary": selectedDestination.accent } as React.CSSProperties} />
+                <div><b>{selectedDestination.epithet}</b><p>{selectedDestination.region} · {selectedDestination.locode} · about {Math.round(inferredDistanceNm ?? 0).toLocaleString()} nm by great-circle</p></div>
+              </div>
+            ) : (
+              <p className="unresolved-copy">AIS says “{selected.destination || "not reported"}”. No port is inferred until that free text resolves with confidence.</p>
+            )}
+          </div>
+
+          <div className="scroll-chapter weather-chapter">
+            <div className="chapter-heading"><span>III</span><div><small>WEATHER SPIRIT</small><strong>{selectedWeather?.name ?? "No sampled spirit nearby"}</strong></div></div>
+            {selectedWeather && (
+              <div className="weather-runes">
+                <div><i className="wind-rune" /><small>WIND</small><strong>{selectedWeather.windSpeedKn?.toFixed(0) ?? "—"} kn</strong></div>
+                <div><i className="wave-rune" /><small>SEA</small><strong>{selectedWeather.waveHeightM?.toFixed(1) ?? "—"} m</strong></div>
+                <div><i className="current-rune" /><small>CURRENT</small><strong>{selectedWeather.currentSpeedKmh?.toFixed(1) ?? "—"} km/h</strong></div>
+              </div>
+            )}
+          </div>
+
           <div className="voyage-row">
-            <div><small>AIS DESTINATION</small><strong>{selected.destination || "Not reported"}</strong></div>
-            <div><small>DRAUGHT</small><strong>{selected.draught ? `${selected.draught.toFixed(1)} m` : "Not reported"}</strong></div>
+            <div><small>NAVIGATION</small><strong>{navStatusLabel(selected.lastFix.navStatus)}</strong></div>
+            <div><small>LAST RECEIVED</small><strong>{formatAge(clock.getTime() - selected.lastFix.receivedAt)}</strong></div>
           </div>
+          <div className="scroll-legend"><span><i className="received-mark" />Received</span><span><i className="inferred-mark" />Inferred</span><span><i className="context-mark" />Context</span></div>
           <p className="provenance-note">
-            {selected.source === "mock" ? "All values in this card are simulated and shaped like real AIS messages." : "Position is received truth. The glowing point is smoothly reconciled and briefly dead-reckoned between fixes."}
+            {selected.source === "mock" ? "All values in this scroll are simulated and shaped like real AIS messages." : `Position and solid trail are received truth from ${selected.provider ?? "AIS"}. The pale future path is an interpretive great-circle toward resolved destination text—not a filed voyage plan.`}
           </p>
         </section>
       )}

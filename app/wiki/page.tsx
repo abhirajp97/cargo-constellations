@@ -17,11 +17,14 @@ const glossary = [
   ["Significant wave height", "The average height of the highest third of waves. It is a practical description of sea state, not the height of every wave."],
   ["Benchmark", "A shared reference price used to understand a market. The public monthly prices here are context, not executable futures quotes."],
   ["Chokepoint", "A narrow passage—such as a canal or strait—through which a large share of trade must pass."],
+  ["Listening waters", "The geographic reach of the receiver networks currently feeding this world. It is coverage, not a claim that every ship inside it will be heard."],
+  ["Inferred voyage", "A pale interpretive path from the last received position toward a confidently resolved AIS destination. It is not a filed route or navigation advice."],
 ];
 
 const sourceLinks = [
   ["AISStream", "Live terrestrial vessel messages", "https://aisstream.io/documentation.html"],
   ["Fintraffic Digitraffic", "Live Finnish and Baltic AIS positions · CC BY 4.0", "https://www.digitraffic.fi/en/marine-traffic/"],
+  ["Norwegian Coastal Administration", "Open live AIS in Norwegian waters · NLOD", "https://www.kystverket.no/en/navigation-and-monitoring/ais/access-to-ais-data/"],
   ["Natural Earth", "Land and public map geometry", "https://www.naturalearthdata.com/"],
   ["Open-Meteo Marine", "Accessible marine model fields", "https://open-meteo.com/en/docs/marine-weather-api"],
   ["NSIDC Sea Ice Index", "Daily polar sea-ice concentration", "https://nsidc.org/data/seaice_index"],
@@ -60,7 +63,7 @@ export default function WikiPage() {
           <div className="wiki-section-title"><span>01</span><div><p>MOTIVATION</p><h2 id="motivation-title">Why build this world?</h2></div></div>
           <div className="wiki-prose-grid">
             <p>The project began with a simple fascination: ordinary goods connect weather, geology, labor, ships, finance, and geography. Coffee in a cup, copper in a wire, or wheat in bread has crossed a landscape of ports, currents, borders, and prices.</p>
-            <p>The visual references are <cite>Breath of the Wild</cite> and <cite>Ghost of Tsushima</cite>: worlds that are spacious, atmospheric, and understandable through attentive looking. Here, ports become fixed stars, vessels become moving lights, and their received paths slowly draw constellations across the sea.</p>
+            <p>The visual references are <cite>Breath of the Wild</cite> and <cite>Ghost of Tsushima</cite>: worlds that are spacious, atmospheric, and understandable through attentive looking. Here, ports become named sanctuaries, weather becomes a visible presence, and received paths slowly draw constellations across the sea.</p>
           </div>
           <div className="principle-grid">
             {principles.map(([title, copy], index) => <div key={title}><span>0{index + 1}</span><h3>{title}</h3><p>{copy}</p></div>)}
@@ -72,11 +75,11 @@ export default function WikiPage() {
           <div className="signal-story" aria-label="How vessel data reaches the globe">
             <div><b>1</b><strong>A ship broadcasts</strong><p>Its radio sends an identity, position, speed, course, and occasional voyage details.</p></div>
             <i aria-hidden="true">→</i>
-            <div><b>2</b><strong>A receiver hears it</strong><p>Coastal stations collect messages within the radio horizon. AISStream and Fintraffic publish the received signals.</p></div>
+            <div><b>2</b><strong>A receiver hears it</strong><p>Coastal stations collect messages within the radio horizon. Fintraffic covers Finnish waters; Kystverket opens Norwegian waters and surrounding zones.</p></div>
             <i aria-hidden="true">→</i>
-            <div><b>3</b><strong>The relay remembers</strong><p>Separate position and vessel-detail messages are merged without exposing the provider key.</p></div>
+            <div><b>3</b><strong>The relay remembers</strong><p>Separate position and vessel-detail messages are merged by MMSI. A sampled rolling day of fixes can become a truthful trail without duplicating overlapping receivers.</p></div>
             <i aria-hidden="true">→</i>
-            <div><b>4</b><strong>The globe breathes</strong><p>The last fix is drawn as truth; motion between fixes is estimated briefly and fades when stale.</p></div>
+            <div><b>4</b><strong>The globe breathes</strong><p>The solid trail is received truth. When destination text resolves confidently, a pale brush-path suggests the horizon while remaining explicitly inferred.</p></div>
           </div>
           <div className="truth-table">
             <div><span className="truth-symbol received" /><strong>Received</strong><p>Direct observation or official published record.</p></div>
@@ -110,6 +113,7 @@ export default function WikiPage() {
               <li>A ship does not broadcast its cargo. Commodity labels are cautious inferences from vessel type, origin, destination, terminal, and draught.</li>
               <li>Radar detections unmatched to AIS are interesting, but they do not prove a vessel deliberately went dark.</li>
               <li>Weather and ocean fields are models sampled across large areas; they are not readings from each ship.</li>
+              <li>AIS destinations are manually entered free text. A resolved port and great-circle path are interpretive context, not a captain&apos;s filed route.</li>
               <li>Public commodity benchmarks are monthly context. They are not live quotes or trading advice.</li>
             </ul>
           </div>
@@ -118,8 +122,8 @@ export default function WikiPage() {
         <section className="wiki-section" aria-labelledby="roadmap-title">
           <div className="wiki-section-title"><span>05</span><div><p>THE WORLD AHEAD</p><h2 id="roadmap-title">From wonder layer to quiet instrument</h2></div></div>
           <div className="roadmap-river">
-            <div><span>NOW</span><h3>Watch</h3><p>Live coastal traffic, planetary fields, sea ice, incidents, canal notices, and market context.</p></div>
-            <div><span>NEXT</span><h3>Understand</h3><p>Cyclone tracks, port dwell time, better commodity inference, persistent voyage history, and port calls.</p></div>
+            <div><span>NOW</span><h3>Watch</h3><p>Finnish and Norwegian live traffic, received voyage trails, inferred horizons, weather spirits, sea ice, incidents, canal notices, and market context.</p></div>
+            <div><span>NEXT</span><h3>Understand</h3><p>Cyclone tracks, durable cross-restart voyage history, port dwell time, better commodity inference, and port calls.</p></div>
             <div><span>LATER</span><h3>Act carefully</h3><p>Freight context, ETA reliability, and procurement timing—always separated from the contemplative globe.</p></div>
           </div>
           <p className="roadmap-note">This is the bridge to the build specification’s action layer: analytics should grow from an honest data model without remaking the world as a conventional dashboard.</p>

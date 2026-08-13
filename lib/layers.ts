@@ -1,5 +1,6 @@
 export type LayerId =
   | "land"
+  | "coverage"
   | "bathymetry"
   | "routes"
   | "day-night"
@@ -29,8 +30,9 @@ export type DataLayer = {
 
 export const DATA_LAYERS: DataLayer[] = [
   { id: "land", label: "Landmass", source: "Natural Earth", status: "active", description: "Public-domain 110m land geometry.", defaultOn: true, locked: true },
+  { id: "coverage", label: "Listening waters", source: "Fintraffic · Kystverket", status: "active", description: "The honest geographic reach of the current free live AIS receivers.", defaultOn: true },
   { id: "bathymetry", label: "Bathymetry", source: "Natural Earth · SRTM+", status: "active", description: "Real nested depth contours at 200, 1,000, 3,000 and 5,000 metres.", defaultOn: true },
-  { id: "routes", label: "Maritime routing", source: "Eurostat marnet", status: "active", description: "Computed sea routes for visualization, never for navigation.", defaultOn: false },
+  { id: "routes", label: "Trade corridors", source: "Eurostat marnet", status: "active", description: "Seven reference corridors for context—not the routes of live vessels.", defaultOn: false },
   { id: "day-night", label: "Day / night", source: "Computed", status: "active", description: "UTC solar terminator calculated locally.", defaultOn: true },
   { id: "chokepoints", label: "Chokepoints", source: "Curated geography", status: "active", description: "Six globally important trade passages.", defaultOn: true },
   { id: "winds", label: "Surface wind", source: "NOAA GFS", status: "active", description: "Current 10 m wind samples, refreshed from Open-Meteo.", defaultOn: false },

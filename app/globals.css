@@ -364,6 +364,9 @@ button { color: inherit; }
 .primary-stat { margin-top: 11px; }
 .primary-stat strong { color: #eed7a6; font: 400 52px/.9 "Iowan Old Style", Georgia, serif; text-shadow: 0 3px 22px rgba(226,171,84,.14); }
 .primary-stat span, .section-heading > span { color: #938979; }
+.coverage-readout { display: flex; align-items: center; gap: 6px; margin: 12px 0 0; color: #8f8678; font: 500 7px/1.4 var(--font-geist-mono), monospace; letter-spacing: .04em; }
+.coverage-readout span { color: #d9bd85; font-size: 9px; }
+.coverage-readout i { width: 9px; height: 1px; background: rgba(227,181,102,.32); }
 .mini-grid { gap: 0; background: transparent; border-top: 1px solid rgba(227,181,102,.13); border-bottom: 1px solid rgba(227,181,102,.1); }
 .mini-grid > div { padding: 11px 10px 10px 0; border: 0; background: transparent; }
 .mini-grid > div:nth-child(even) { padding-left: 12px; border-left: 1px solid rgba(227,181,102,.1); }
@@ -393,6 +396,7 @@ button { color: inherit; }
 .market-grid > div { border: 1px solid rgba(227,181,102,.08); border-radius: 0; background: rgba(8,19,33,.46); }
 .rail-note > p:nth-child(2), .truth-key { color: #9f9583; }
 .solid-line, .dotted-line { border-color: #ddb15f; }
+.brush-line { width: 24px; height: 5px; background: linear-gradient(90deg, transparent, rgba(238,213,163,.8) 22%, rgba(238,213,163,.34) 78%, transparent); clip-path: polygon(0 38%, 82% 0, 100% 55%, 76% 100%, 12% 78%); }
 
 .globe-controls { left: 42px; bottom: 77px; color: #a79a84; }
 .globe-controls button { width: 39px; height: 39px; border-color: rgba(227,181,102,.5); border-radius: 50% 42% 52% 46%; background: rgba(23,30,46,.62); color: #e4b966; box-shadow: 0 9px 29px rgba(2,6,15,.32), inset 0 0 0 5px rgba(227,181,102,.035); }
@@ -408,6 +412,42 @@ button { color: inherit; }
 .vessel-card h2 { color: #efdcba; font: 400 29px "Iowan Old Style", Georgia, serif; }
 .card-topline p, .vessel-id, .detail-grid small, .voyage-row small, .provenance-note { color: #9c9180; }
 .coordinates, .detail-grid strong, .voyage-row strong { color: #e5d3b3; }
+.voyage-scroll { top: 174px; width: min(438px, calc(100vw - 420px)); max-height: calc(100vh - 260px); padding: 23px 25px 19px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(227,181,102,.22) transparent; }
+.voyage-scroll .coordinates { margin: 13px 0 17px; color: #c7b591; font-size: 12px; }
+.scroll-chapter { position: relative; margin-top: 13px; padding: 14px 0 13px; border-top: 1px solid rgba(227,181,102,.16); }
+.chapter-heading { display: grid; grid-template-columns: 27px 1fr; gap: 9px; align-items: start; }
+.chapter-heading > span { width: 22px; height: 22px; display: grid; place-items: center; border: 1px solid rgba(227,181,102,.32); border-radius: 50% 44% 53% 46%; color: #bc9659; font: italic 400 10px Georgia, serif; transform: rotate(-7deg); }
+.chapter-heading small { display: block; color: #a9824d; font: 600 7px var(--font-geist-mono), monospace; letter-spacing: .18em; }
+.chapter-heading strong { display: block; margin-top: 5px; color: #ead7b3; font: 400 15px/1.25 "Iowan Old Style", Georgia, serif; }
+.chronicle-line { position: relative; height: 11px; margin: 12px 0 9px 36px; overflow: hidden; }
+.chronicle-line::before { content: ""; position: absolute; left: 0; right: 0; top: 5px; border-top: 1px dotted rgba(227,181,102,.2); }
+.chronicle-line i { position: absolute; left: 0; top: 3px; height: 4px; min-width: 18px; background: linear-gradient(90deg, #dc9c59, #f1d798 72%, transparent); clip-path: polygon(0 30%, 94% 0, 100% 50%, 92% 100%, 0 70%); box-shadow: 0 0 9px rgba(225,169,83,.55); }
+.chronicle-facts { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; margin-left: 36px; background: rgba(227,181,102,.1); }
+.chronicle-facts > div { padding: 8px 8px 7px; background: rgba(12,24,39,.88); }
+.chronicle-facts small, .weather-runes small { display: block; color: #857b6d; font: 600 6px var(--font-geist-mono), monospace; letter-spacing: .1em; }
+.chronicle-facts strong { display: block; margin-top: 5px; color: #ddc9a5; font: 400 12px var(--font-geist-mono), monospace; }
+.chronicle-facts em { color: #8f8474; font: normal 7px var(--font-geist-mono), monospace; }
+.sanctuary-copy { display: grid; grid-template-columns: 27px 1fr; gap: 9px; margin: 11px 0 0 36px; }
+.sanctuary-copy > i { width: 18px; height: 18px; margin-top: 3px; border: 1px solid var(--sanctuary); border-radius: 50% 42% 55% 45%; box-shadow: 0 0 13px color-mix(in srgb, var(--sanctuary) 54%, transparent), inset 0 0 0 5px color-mix(in srgb, var(--sanctuary) 8%, transparent); transform: rotate(45deg); }
+.sanctuary-copy b { color: #dbc39a; font: italic 400 13px Georgia, serif; }
+.sanctuary-copy p, .unresolved-copy { margin: 5px 0 0; color: #948a7b; font: 400 8px/1.55 var(--font-geist-mono), monospace; }
+.unresolved-copy { margin-left: 36px; padding-left: 9px; border-left: 1px dotted rgba(227,181,102,.25); }
+.weather-runes { display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; margin: 12px 0 0 36px; }
+.weather-runes > div { position: relative; min-height: 54px; padding: 8px 7px 7px 26px; border: 1px solid rgba(150,194,178,.11); background: linear-gradient(135deg, rgba(105,151,140,.07), transparent); }
+.weather-runes strong { display: block; margin-top: 5px; color: #c9d8c4; font: 400 9px var(--font-geist-mono), monospace; }
+.weather-runes i { position: absolute; left: 8px; top: 13px; width: 10px; height: 10px; opacity: .8; }
+.wind-rune { border-top: 1px solid #d9d3ad; border-radius: 50%; transform: rotate(-18deg); }
+.wave-rune { border-bottom: 2px solid #9fc1ca; border-radius: 50%; transform: rotate(-12deg); }
+.current-rune { border: 1px solid #88c9b1; border-left-color: transparent; border-radius: 50%; }
+.voyage-scroll .voyage-row { margin-top: 13px; padding-top: 12px; border-top: 1px solid rgba(227,181,102,.12); }
+.voyage-scroll .voyage-row strong { display: block; font-size: 9px; line-height: 1.45; }
+.scroll-legend { display: flex; gap: 14px; margin-top: 14px; color: #857c70; font: 500 6px var(--font-geist-mono), monospace; letter-spacing: .07em; }
+.scroll-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.scroll-legend i { width: 18px; }
+.received-mark { border-top: 2px solid #e4af62; box-shadow: 0 0 5px rgba(228,175,98,.4); }
+.inferred-mark { height: 4px; background: linear-gradient(90deg, transparent, #e4d0a7, transparent); }
+.context-mark { border-top: 1px dotted #c4a56b; }
+.voyage-scroll .provenance-note { margin-top: 13px; font-size: 7px; }
 .footer-note { right: 390px; bottom: 15px; height: 43px; margin: 0 42px; padding: 0 0 0 15px; border: 0; border-left: 1px solid rgba(227,181,102,.34); border-radius: 0; background: transparent; backdrop-filter: none; }
 .footer-note span { color: #b58d50; }
 .footer-note p { color: #8d8373; }

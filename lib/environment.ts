@@ -29,6 +29,12 @@ export const ENVIRONMENT_SAMPLES: EnvironmentPoint[] = [
   { id: "east-china-sea", name: "East China Sea", coords: [126, 29] },
   { id: "mediterranean", name: "Mediterranean", coords: [17, 35] },
   { id: "north-sea", name: "North Sea", coords: [3, 56] },
+  { id: "norwegian-sea", name: "Norwegian Sea", coords: [5, 66] },
+  { id: "barents-sea", name: "Barents Sea", coords: [28, 73] },
+  { id: "skagerrak", name: "Skagerrak", coords: [9, 58] },
+  { id: "baltic", name: "Baltic Sea", coords: [19, 57] },
+  { id: "gulf-finland", name: "Gulf of Finland", coords: [25, 59.6] },
+  { id: "bothnia", name: "Bay of Bothnia", coords: [21, 64] },
 ];
 
 type ApiCurrent = Record<string, number | string | null>;

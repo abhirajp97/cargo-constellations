@@ -1,24 +1,24 @@
 import WebSocket, { WebSocketServer } from "ws";
 import mqtt, { type MqttClient } from "mqtt";
 import { createServer } from "node:http";
+import net from "node:net";
 import { mergeAisEnvelope, type AisEnvelope, type Vessel } from "../lib/ais.js";
+import { NmeaAisDecoder } from "../lib/nmea-ais.js";
 
 const upstreamUrl = "wss://stream.aisstream.io/v0/stream";
 const fintrafficMqttUrl = "wss://meri.digitraffic.fi:443/mqtt";
 const fintrafficLocationsUrl = "https://meri.digitraffic.fi/api/ais/v1/locations";
 const fintrafficVesselsUrl = "https://meri.digitraffic.fi/api/ais/v1/vessels";
 const fintrafficUserAgent = "cargo-constellations/0.1 (https://github.com/abhirajp97/cargo-constellations)";
+const kystverketHost = process.env.KYSTVERKET_AIS_HOST ?? "153.44.253.27";
+const kystverketPort = Number(process.env.KYSTVERKET_AIS_PORT ?? 5631);
+const kystverketEnabled = process.env.KYSTVERKET_AIS_ENABLED !== "false";
 const apiKey = process.env.AISSTREAM_API_KEY;
 const gfwApiToken = process.env.GFW_API_TOKEN;
 const downstreamPort = Number(process.env.PORT ?? process.env.AIS_RELAY_PORT ?? 8787);
 const fullGlobe = process.env.AIS_FULL_GLOBE === "true";
 const vesselTtlMs = 60 * 60 * 1000;
 const allowedOrigins = new Set((process.env.ALLOWED_ORIGINS ?? "").split(",").map((value) => value.trim()).filter(Boolean));
-
-if (!apiKey) {
-  console.error("AISSTREAM_API_KEY is required. Copy .env.example to .env and add your aisstream.io key.");
-  process.exit(1);
-}
 
 const vessels = new Map<string, Vessel>();
 const dirty = new Set<string>();
@@ -91,7 +91,7 @@ const httpServer = createServer(async (request, response) => {
     response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
     response.end(JSON.stringify({
       ok: true,
-      upstream: upstreamSubscriptionError
+      upstream: !apiKey ? "disabled" : upstreamSubscriptionError
         ? "error"
         : upstream?.readyState === WebSocket.OPEN ? "connected" : "reconnecting",
       upstreamError: upstreamSubscriptionError,
@@ -104,6 +104,11 @@ const httpServer = createServer(async (request, response) => {
       fintrafficFrames,
       acceptedFintrafficFrames,
       lastFintrafficFrameAt,
+      kystverket: !kystverketEnabled ? "disabled" : kystverketError ? "error" : kystverketConnected ? "connected" : "reconnecting",
+      kystverketError,
+      kystverketFrames,
+      acceptedKystverketFrames,
+      lastKystverketFrameAt,
       vessels: vessels.size,
       clients: downstream.clients.size,
       now: new Date().toISOString(),
@@ -144,6 +149,16 @@ let fintrafficFrames = 0;
 let acceptedFintrafficFrames = 0;
 let lastFintrafficFrameAt: string | undefined;
 let fintrafficError: string | undefined;
+let kystverket: net.Socket | undefined;
+let kystverketReconnectTimer: NodeJS.Timeout | undefined;
+let kystverketReconnectAttempt = 0;
+let kystverketConnected = false;
+let kystverketFrames = 0;
+let acceptedKystverketFrames = 0;
+let lastKystverketFrameAt: string | undefined;
+let kystverketError: string | undefined;
+let kystverketBuffer = "";
+const kystverketDecoder = new NmeaAisDecoder();
 
 const subscription = {
   APIKey: apiKey,
@@ -155,8 +170,13 @@ const subscription = {
       ],
 };
 
-function publicVessel(vessel: Vessel): Vessel {
-  return { ...vessel, source: "live", renderedPosition: undefined };
+function publicVessel(vessel: Vessel, includeFullTrail = true): Vessel {
+  return {
+    ...vessel,
+    source: "live",
+    trail: includeFullTrail ? vessel.trail : vessel.trail.slice(-2),
+    renderedPosition: undefined,
+  };
 }
 
 type LiveClient = WebSocket & { isAlive?: boolean };
@@ -200,7 +220,7 @@ function fintrafficMetadataEnvelope(mmsi: string, metadata: Record<string, unkno
   };
 }
 
-function mergeEnvelope(envelope: AisEnvelope, provider: "aisstream" | "fintraffic", receivedAt = Date.now()) {
+function mergeEnvelope(envelope: AisEnvelope, provider: "aisstream" | "fintraffic" | "kystverket", receivedAt = Date.now()) {
   const payload = envelope.Message?.[envelope.MessageType];
   const mmsi = String(payload?.UserID ?? payload?.MMSI ?? envelope.MetaData?.MMSI ?? "");
   const merged = mergeAisEnvelope(vessels.get(mmsi), envelope, receivedAt, "live");
@@ -208,7 +228,8 @@ function mergeEnvelope(envelope: AisEnvelope, provider: "aisstream" | "fintraffi
   vessels.set(merged.mmsi, merged);
   dirty.add(merged.mmsi);
   if (provider === "aisstream") acceptedVesselFrames += 1;
-  else acceptedFintrafficFrames += 1;
+  if (provider === "fintraffic") acceptedFintrafficFrames += 1;
+  if (provider === "kystverket") acceptedKystverketFrames += 1;
 }
 
 async function seedFintraffic() {
@@ -276,10 +297,54 @@ function connectFintraffic() {
   });
 }
 
+function connectKystverket() {
+  if (!kystverketEnabled || shuttingDown) return;
+  kystverket = net.createConnection({ host: kystverketHost, port: kystverketPort });
+  kystverket.setKeepAlive(true, 30_000);
+  kystverket.setTimeout(45_000);
+  kystverket.on("connect", () => {
+    kystverketConnected = true;
+    kystverketError = undefined;
+    kystverketReconnectAttempt = 0;
+    console.log("Kystverket open AIS connected · Norwegian waters");
+  });
+  kystverket.on("data", (chunk) => {
+    kystverketBuffer += chunk.toString("ascii");
+    const lines = kystverketBuffer.split(/\r?\n/);
+    kystverketBuffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      kystverketFrames += 1;
+      lastKystverketFrameAt = new Date().toISOString();
+      try {
+        for (const envelope of kystverketDecoder.decode(line)) mergeEnvelope(envelope, "kystverket");
+      } catch (error) {
+        console.warn("Dropped malformed Kystverket frame", error instanceof Error ? error.message : error);
+      }
+    }
+  });
+  kystverket.on("timeout", () => {
+    kystverketError = "stream timed out";
+    kystverket?.destroy();
+  });
+  kystverket.on("error", (error) => {
+    kystverketConnected = false;
+    kystverketError = error.message;
+  });
+  kystverket.on("close", () => {
+    kystverketConnected = false;
+    if (shuttingDown) return;
+    const base = Math.min(60_000, 1_000 * 2 ** kystverketReconnectAttempt);
+    const delay = Math.round(base * (0.8 + Math.random() * 0.4));
+    kystverketReconnectAttempt += 1;
+    kystverketReconnectTimer = setTimeout(connectKystverket, delay);
+  });
+}
+
 downstream.on("connection", (client: LiveClient) => {
   client.isAlive = true;
   client.on("pong", () => { client.isAlive = true; });
-  const snapshot = [...vessels.values()].filter((vessel) => vessel.lastFix).map(publicVessel);
+  const snapshot = [...vessels.values()].filter((vessel) => vessel.lastFix).map((vessel) => publicVessel(vessel));
   client.send(JSON.stringify({ type: "snapshot", sentAt: Date.now(), vessels: snapshot }));
 });
 
@@ -299,7 +364,7 @@ const flushTimer = setInterval(() => {
   const deltas = [...dirty]
     .map((mmsi) => vessels.get(mmsi))
     .filter((vessel): vessel is Vessel => Boolean(vessel))
-    .map(publicVessel);
+    .map((vessel) => publicVessel(vessel, false));
   dirty.clear();
   const frame = JSON.stringify({ type: "deltas", sentAt: Date.now(), vessels: deltas });
   for (const client of downstream.clients) {
@@ -361,11 +426,13 @@ function connectUpstream() {
 function shutdown() {
   shuttingDown = true;
   if (reconnectTimer) clearTimeout(reconnectTimer);
+  if (kystverketReconnectTimer) clearTimeout(kystverketReconnectTimer);
   clearInterval(flushTimer);
   clearInterval(pruneTimer);
   clearInterval(heartbeatTimer);
   upstream?.close();
   fintraffic?.end(true);
+  kystverket?.destroy();
   downstream.close();
   httpServer.close(() => process.exit(0));
 }
@@ -375,9 +442,11 @@ process.on("SIGTERM", shutdown);
 httpServer.listen(downstreamPort, "0.0.0.0", () => {
   console.log(`AIS relay listening on http://0.0.0.0:${downstreamPort}`);
 });
-connectUpstream();
+if (apiKey) connectUpstream();
+else console.log("AISstream disabled · no API key configured");
 seedFintraffic().catch((error) => {
   fintrafficError = error instanceof Error ? error.message : "snapshot unavailable";
   console.warn("Fintraffic seed error", fintrafficError);
 });
 connectFintraffic();
+connectKystverket();

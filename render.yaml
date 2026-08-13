@@ -12,5 +12,7 @@ services:
         sync: false
       - key: AIS_FULL_GLOBE
         value: "false"
+      - key: KYSTVERKET_AIS_ENABLED
+        value: "true"
       - key: ALLOWED_ORIGINS
         value: https://cargo-constellations.sanoja2000.chatgpt.site

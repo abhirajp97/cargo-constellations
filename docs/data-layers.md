@@ -5,8 +5,9 @@ The interface distinguishes **active**, **key required**, and **adapter required
 | Layer | Source | Current state |
 |---|---|---|
 | Landmass | Natural Earth 110m | Active |
+| Listening waters | Fintraffic / Kystverket public receiver reach | Active; approximate and explicitly regional |
 | Bathymetry | Natural Earth nested SRTM+ contours | Active at 200/1,000/3,000/5,000 m |
-| Maritime routes | `searoute-js`, Eurostat-derived marnet | Active; visualization only |
+| Trade corridors | `searoute-js`, Eurostat-derived marnet | Seven reference corridors; never presented as live-vessel routes |
 | Day/night | Computed solar terminator | Active |
 | Chokepoints | Curated coordinates | Active |
 | Surface wind | NOAA GFS through Open-Meteo | Active, 15-minute refresh |
@@ -14,7 +15,7 @@ The interface distinguishes **active**, **key required**, and **adapter required
 | Ocean currents | Météo-France SMOC through Open-Meteo | Active, sampled field |
 | Load state | AIS draught plus vessel marks | Architecture active; live classification remains unknown without hull marks |
 | Port congestion | AIS status near known ports | Active for current counts; seven-day trend needs persistence |
-| AIS gaps | Local vessel history | Active; a gap is not labeled deliberate |
+| AIS gaps | Rolling sampled relay history | Active; a gap is not labeled deliberate |
 | SAR / dark vessels | Global Fishing Watch | Relay adapter implemented; free bearer token required |
 | Sea ice | NSIDC Sea Ice Index v4 | Active daily snapshot; polar GeoTIFFs are reprojected and sampled |
 | Canal restrictions | Panama Canal Authority advisories | Active official advisory index with draft, outage and navigation notices |
