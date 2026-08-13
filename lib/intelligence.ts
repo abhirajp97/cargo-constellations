@@ -223,7 +223,36 @@ export async function fetchWorldWake(websocketUrl: string): Promise<WorldWakeSna
 }
 
 export async function fetchDelayedVoyagePilot(websocketUrl: string): Promise<DelayedVoyagePilot> {
-  const response = await fetch(`${relayHttpBase(websocketUrl)}/api/gfw-voyage-probe`);
-  if (!response.ok) throw new Error(response.status === 503 ? "GFW token not configured" : "Delayed voyage pilot unavailable");
-  return response.json() as Promise<DelayedVoyagePilot>;
+  const base = relayHttpBase(websocketUrl);
+  const manifestResponse = await fetch(`${base}/api/gfw-voyage-probe`);
+  if (!manifestResponse.ok) throw new Error(manifestResponse.status === 503 ? "GFW token not configured" : "Delayed voyage pilot unavailable");
+  const manifest = await manifestResponse.json() as Omit<DelayedVoyagePilot, "verdict" | "rows" | "identifiedVessels" | "qualifyingVessels" | "candidates" | "corridors"> & {
+    corridorSpecs: Array<Pick<DelayedVoyageCorridor, "id" | "label" | "focus">>;
+  };
+  const corridorResults: DelayedVoyagePilot[] = [];
+  const corridors: DelayedVoyageCorridor[] = [];
+  for (const corridor of manifest.corridorSpecs) {
+    try {
+      const response = await fetch(`${base}/api/gfw-voyage-probe?corridor=${encodeURIComponent(corridor.id)}`);
+      if (!response.ok) throw new Error(`report failed (${response.status})`);
+      const result = await response.json() as DelayedVoyagePilot;
+      corridorResults.push(result);
+      corridors.push(result.corridors[0]);
+    } catch (error) {
+      corridors.push({ ...corridor, rows: 0, identifiedVessels: 0, qualifyingVessels: 0, shown: 0, status: "error", error: error instanceof Error ? error.message : "Corridor unavailable" });
+    }
+  }
+  const candidates = corridorResults.flatMap((result) => result.candidates)
+    .sort((a, b) => b.distanceNm - a.distanceNm || b.points.length - a.points.length)
+    .slice(0, 180);
+  if (candidates.length === 0) throw new Error("Delayed voyage corridors unavailable");
+  return {
+    ...manifest,
+    verdict: candidates.length >= 20 && corridors.filter((corridor) => corridor.status === "live").length >= 3 ? "pass" : "fail",
+    rows: corridorResults.reduce((sum, result) => sum + result.rows, 0),
+    identifiedVessels: corridorResults.reduce((sum, result) => sum + result.identifiedVessels, 0),
+    qualifyingVessels: corridorResults.reduce((sum, result) => sum + result.qualifyingVessels, 0),
+    corridors,
+    candidates,
+  };
 }
