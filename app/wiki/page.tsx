@@ -4,7 +4,7 @@ import Link from "next/link";
 const principles = [
   ["Wonder before analysis", "The first job is to make the living movement of trade feel worth lingering over. The second is to help explain it."],
   ["Truth before spectacle", "A received position, a model estimate, and a demonstration value must never masquerade as the same kind of fact."],
-  ["Edges tell the story", "Free terrestrial AIS is strongest near shore. The glowing coasts and dark oceans reveal how the sensing system actually works."],
+  ["Time is part of truth", "Live regional radio and delayed global satellite-derived presence are both useful, but they must never look or read as though they share the same clock."],
   ["Quiet tools", "Prices and operational signals live beside the globe. They should add meaning without turning the world into a trading terminal."],
 ];
 
@@ -19,16 +19,18 @@ const glossary = [
   ["Chokepoint", "A narrow passage—such as a canal or strait—through which a large share of trade must pass."],
   ["Listening waters", "The geographic reach of the receiver networks currently feeding this world. It is coverage, not a claim that every ship inside it will be heard."],
   ["Inferred voyage", "A pale interpretive path from the last received position toward a confidently resolved AIS destination. It is not a filed route or navigation advice."],
+  ["World wake", "A one-degree field of cargo-vessel presence observed by Global Fishing Watch about four days earlier. It is historical density, not a set of live vessel positions."],
 ];
 
 const sourceLinks = [
   ["AISStream", "Live terrestrial vessel messages", "https://aisstream.io/documentation.html"],
   ["Fintraffic Digitraffic", "Live Finnish and Baltic AIS positions · CC BY 4.0", "https://www.digitraffic.fi/en/marine-traffic/"],
   ["Norwegian Coastal Administration", "Open live AIS in Norwegian waters · NLOD", "https://www.kystverket.no/en/navigation-and-monitoring/ais/access-to-ais-data/"],
+  ["AISHub", "Reciprocal global terrestrial AIS network under evaluation", "https://www.aishub.net/join-us"],
   ["Natural Earth", "Land and public map geometry", "https://www.naturalearthdata.com/"],
   ["Open-Meteo Marine", "Accessible marine model fields", "https://open-meteo.com/en/docs/marine-weather-api"],
   ["NSIDC Sea Ice Index", "Daily polar sea-ice concentration", "https://nsidc.org/data/seaice_index"],
-  ["Global Fishing Watch", "Satellite radar vessel detections", "https://globalfishingwatch.org/our-apis/documentation"],
+  ["Global Fishing Watch", "Four-day-delayed global AIS presence and satellite radar detections", "https://globalfishingwatch.org/our-apis/documentation"],
   ["Panama Canal Authority", "Official advisories to shipping", "https://pancanal.com/en/maritime-services/advisory-to-shipping/"],
   ["IMB Piracy Reporting Centre", "Public incident map", "https://icc-ccs.org/map/"],
   ["World Bank Pink Sheet", "Monthly public commodity benchmarks", "https://www.worldbank.org/en/research/commodity-markets"],
@@ -77,9 +79,9 @@ export default function WikiPage() {
             <i aria-hidden="true">→</i>
             <div><b>2</b><strong>A receiver hears it</strong><p>Coastal stations collect messages within the radio horizon. Fintraffic covers Finnish waters; Kystverket opens Norwegian waters and surrounding zones.</p></div>
             <i aria-hidden="true">→</i>
-            <div><b>3</b><strong>The relay remembers</strong><p>Separate position and vessel-detail messages are merged by MMSI. A sampled rolling day of fixes can become a truthful trail without duplicating overlapping receivers.</p></div>
+            <div><b>3</b><strong>Two clocks remain separate</strong><p>Live Finnish and Norwegian radio messages become crisp lanterns. Global Fishing Watch cargo presence arrives about four days later and becomes a soft aggregate wake.</p></div>
             <i aria-hidden="true">→</i>
-            <div><b>4</b><strong>The globe breathes</strong><p>The solid trail is received truth. When destination text resolves confidently, a pale brush-path suggests the horizon while remaining explicitly inferred.</p></div>
+            <div><b>4</b><strong>The globe breathes</strong><p>The solid trail is received truth. The global wake is delayed history. When destination text resolves confidently, a pale brush-path suggests the horizon while remaining explicitly inferred.</p></div>
           </div>
           <div className="truth-table">
             <div><span className="truth-symbol received" /><strong>Received</strong><p>Direct observation or official published record.</p></div>
@@ -114,6 +116,7 @@ export default function WikiPage() {
               <li>Radar detections unmatched to AIS are interesting, but they do not prove a vessel deliberately went dark.</li>
               <li>Weather and ocean fields are models sampled across large areas; they are not readings from each ship.</li>
               <li>AIS destinations are manually entered free text. A resolved port and great-circle path are interpretive context, not a captain&apos;s filed route.</li>
+              <li>The Global Fishing Watch world wake uses one-degree aggregate presence cells observed approximately four days earlier. It cannot identify a ship&apos;s current position.</li>
               <li>Public commodity benchmarks are monthly context. They are not live quotes or trading advice.</li>
             </ul>
           </div>
@@ -122,8 +125,8 @@ export default function WikiPage() {
         <section className="wiki-section" aria-labelledby="roadmap-title">
           <div className="wiki-section-title"><span>05</span><div><p>THE WORLD AHEAD</p><h2 id="roadmap-title">From wonder layer to quiet instrument</h2></div></div>
           <div className="roadmap-river">
-            <div><span>NOW</span><h3>Watch</h3><p>Finnish and Norwegian live traffic, received voyage trails, inferred horizons, weather spirits, sea ice, incidents, canal notices, and market context.</p></div>
-            <div><span>NEXT</span><h3>Understand</h3><p>Cyclone tracks, durable cross-restart voyage history, port dwell time, better commodity inference, and port calls.</p></div>
+            <div><span>NOW</span><h3>Watch</h3><p>Finnish and Norwegian live traffic above a four-day-delayed global cargo wake, with received trails, inferred horizons, weather spirits, sea ice, incidents, and market context.</p></div>
+            <div><span>NEXT</span><h3>Understand</h3><p>A reciprocal AISHub receiver, cyclone tracks, durable cross-restart voyage history, port dwell time, better commodity inference, and port calls.</p></div>
             <div><span>LATER</span><h3>Act carefully</h3><p>Freight context, ETA reliability, and procurement timing—always separated from the contemplative globe.</p></div>
           </div>
           <p className="roadmap-note">This is the bridge to the build specification’s action layer: analytics should grow from an honest data model without remaking the world as a conventional dashboard.</p>

@@ -25,6 +25,7 @@ test("server-renders the Cargo Constellations experience", async () => {
   assert.match(html, /WORLD LAYERS/);
   assert.match(html, /Bathymetry/);
   assert.match(html, /Listening waters/);
+  assert.match(html, /Four-day world wake/);
   assert.match(html, /NOAA GFS/);
   assert.match(html, /NSIDC Sea Ice Index/);
   assert.match(html, /World Bank Pink Sheet/);
@@ -43,6 +44,7 @@ test("server-renders the plain-language field guide", async () => {
   assert.match(html, /Global Fishing Watch/);
   assert.match(html, /Norwegian Coastal Administration/);
   assert.match(html, /Inferred voyage/);
+  assert.match(html, /World wake/);
 });
 
 test("ships the cartography and social preview assets", async () => {

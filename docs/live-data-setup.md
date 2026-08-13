@@ -42,7 +42,7 @@ This repository includes `Dockerfile` and `render.yaml`.
 2. In Render, create a **Blueprint** from that repository, or create a Docker **Web Service** manually.
 3. Prefer an always-on instance. The free instance can sleep; the site waits through its wake-up window, but a cold start begins a fresh trail history.
 4. Add `AISSTREAM_API_KEY` only if you want the optional AISStream coverage.
-5. Add `GFW_API_TOKEN` as a secret if you want unmatched Sentinel-1 SAR detections.
+5. Add `GFW_API_TOKEN` as a secret for the four-day-delayed global cargo wake and optional unmatched Sentinel-1 SAR detections.
 6. Keep `AIS_FULL_GLOBE=false` initially.
 7. Set `ALLOWED_ORIGINS` to the exact Cargo Constellations site origin. Multiple origins are comma-separated.
 8. Deploy and open `https://YOUR-SERVICE.onrender.com/health`.
@@ -69,6 +69,7 @@ For the hosted Site, add the same environment value in the Site settings and red
 ## Operational cautions
 
 - Keep optional AISStream scoped to its two configured bounding boxes. Full-globe commercial traffic can average hundreds of messages per second.
+- The Global Fishing Watch world wake is intentionally separate from live AIS: it aggregates cargo and carrier presence into one-degree cells from the latest day expected to be complete, approximately four days earlier.
 - Do not run multiple relay instances against the same key until fan-out and shared state are designed for it.
 - Keep one instance initially. Horizontal scaling requires Redis or another shared store/pub-sub layer.
 - Treat a clean upstream close as recoverable.

@@ -351,6 +351,12 @@ button { color: inherit; }
 .source-banner { top: 135px; left: 42px; gap: 11px; padding: 10px 22px 10px 14px; border: 0; border-left: 2px solid currentColor; border-radius: 0; clip-path: polygon(0 0, 100% 6%, 94% 100%, 0 92%); background: rgba(73,53,45,.7); color: #e1b66c; box-shadow: 0 14px 40px rgba(3,7,16,.18); }
 .source-banner.live { color: #acd6b6; border-color: currentColor; background: rgba(43,68,58,.67); }
 .source-banner.offline { color: #df826f; border-color: currentColor; background: rgba(83,44,43,.65); }
+.history-banner { position: absolute; z-index: 24; top: 181px; left: 43px; display: flex; align-items: center; gap: 9px; max-width: min(480px, calc(100vw - 410px)); color: #83cbbb; font: 600 7px/1.4 var(--font-geist-mono), monospace; letter-spacing: .14em; text-shadow: 0 2px 12px rgba(2,8,16,.9); pointer-events: none; }
+.history-banner.loading { color: #b89864; }
+.history-banner.offline, .history-banner.key { color: #b67f72; }
+.wake-glyph { width: 20px; height: 6px; border-top: 1px solid currentColor; border-radius: 50%; box-shadow: 0 -4px 12px currentColor; opacity: .85; }
+.wake-readout { border-left-color: rgba(116, 220, 199, .42); background: linear-gradient(90deg, rgba(73, 177, 165, .1), transparent); }
+.layer-state.delayed { background: #74dcc7; box-shadow: 0 0 9px rgba(116,220,199,.65); }
 .status-dot { width: 6px; height: 6px; border-radius: 50% 38% 56% 42%; box-shadow: 0 0 13px currentColor; }
 .map-verse { position: absolute; z-index: 19; left: 43px; top: 50%; transform: translateY(-35%); padding-left: 15px; border-left: 1px solid rgba(225,181,101,.42); pointer-events: none; text-shadow: 0 2px 15px rgba(4,8,18,.8); }
 .map-verse span { color: #b38f54; font: 600 7px var(--font-geist-mono), monospace; letter-spacing: .22em; }
@@ -480,6 +486,7 @@ button { color: inherit; }
   .layer-footnote { display: none; }
   .intelligence-readouts { display: none; }
   .source-banner { top: 91px; left: 18px; }
+  .history-banner { top: 130px; left: 19px; max-width: calc(100vw - 38px); font-size: 6px; }
   .footer-note, .chokepoint-key { display: none; }
   .globe-controls { left: 18px; bottom: 158px; }
   .vessel-card { left: 18px; top: 135px; width: calc(100vw - 36px); max-height: calc(100vh - 280px); overflow-y: auto; }

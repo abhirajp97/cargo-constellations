@@ -25,9 +25,47 @@ const dirty = new Set<string>();
 type SarDetection = { date: string; lat: number; lon: number; detections: number };
 type SarSnapshot = { observedAt: string; dateRange: string; source: string; filter: "unmatched-with-ais"; detections: SarDetection[] };
 let sarCache: { expiresAt: number; snapshot: SarSnapshot } | undefined;
+type WorldWakeCell = { date: string; lat: number; lon: number; hours: number; vesselIds: number };
+type WorldWakeSnapshot = {
+  observedAt: string;
+  dateRange: string;
+  availableThrough: string;
+  delayDays: 4;
+  source: string;
+  resolution: "one-degree-aggregate";
+  filter: "cargo-and-carrier";
+  cells: WorldWakeCell[];
+};
+let worldWakeCache: { expiresAt: number; snapshot: WorldWakeSnapshot } | undefined;
+let worldWakePromise: Promise<void> | undefined;
+let worldWakeError: string | undefined;
+let gfwReportQueue: Promise<void> = Promise.resolve();
 
-function writeJson(response: import("node:http").ServerResponse, status: number, body: unknown) {
-  response.writeHead(status, { "content-type": "application/json", "cache-control": "public, max-age=300" });
+function queueGfwReport<T>(task: () => Promise<T>): Promise<T> {
+  const run = gfwReportQueue.then(task, task);
+  gfwReportQueue = run.then(() => undefined, () => undefined);
+  return run;
+}
+
+async function readGfwReport(source: Response) {
+  if (source.ok) return source.json() as Promise<{ entries?: Array<Record<string, Array<Record<string, unknown>>>> }>;
+  if (source.status !== 524) throw new Error(`GFW report failed (${source.status})`);
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
+    const recovered = await fetch("https://gateway.api.globalfishingwatch.org/v3/4wings/last-report", {
+      headers: { authorization: `Bearer ${gfwApiToken}` },
+    });
+    if (!recovered.ok) continue;
+    const report = await recovered.json() as { status?: string; entries?: Array<Record<string, Array<Record<string, unknown>>>> };
+    if (report.status === "running") continue;
+    if (report.entries) return report;
+    throw new Error("GFW report finished without data");
+  }
+  throw new Error("GFW report did not finish within its recovery window");
+}
+
+function writeJson(response: import("node:http").ServerResponse, status: number, body: unknown, cacheControl = "public, max-age=300") {
+  response.writeHead(status, { "content-type": "application/json", "cache-control": cacheControl });
   response.end(JSON.stringify(body));
 }
 
@@ -37,6 +75,8 @@ function isoDate(date: Date) {
 
 async function fetchSarSnapshot(): Promise<SarSnapshot> {
   if (!gfwApiToken) throw new Error("GFW_API_TOKEN is not configured");
+  if (sarCache && sarCache.expiresAt > Date.now()) return sarCache.snapshot;
+  return queueGfwReport(async () => {
   if (sarCache && sarCache.expiresAt > Date.now()) return sarCache.snapshot;
   const end = new Date(Date.now() - 5 * 86_400_000);
   const start = new Date(end.getTime() - 7 * 86_400_000);
@@ -59,8 +99,7 @@ async function fetchSarSnapshot(): Promise<SarSnapshot> {
       },
     }),
   });
-  if (!source.ok) throw new Error(`GFW report failed (${source.status})`);
-  const report = await source.json() as { entries?: Array<Record<string, SarDetection[]>> };
+  const report = await readGfwReport(source);
   const detections = (report.entries ?? [])
     .flatMap((entry) => Object.values(entry).flat())
     .filter((item): item is SarDetection => Boolean(item) && Number.isFinite(item.lat) && Number.isFinite(item.lon) && item.detections > 0)
@@ -74,6 +113,81 @@ async function fetchSarSnapshot(): Promise<SarSnapshot> {
   };
   sarCache = { expiresAt: Date.now() + 6 * 60 * 60 * 1000, snapshot };
   return snapshot;
+  });
+}
+
+async function fetchWorldWakeSnapshot(): Promise<WorldWakeSnapshot> {
+  if (!gfwApiToken) throw new Error("GFW_API_TOKEN is not configured");
+  if (worldWakeCache && worldWakeCache.expiresAt > Date.now()) return worldWakeCache.snapshot;
+  return queueGfwReport(async () => {
+  if (worldWakeCache && worldWakeCache.expiresAt > Date.now()) return worldWakeCache.snapshot;
+  const end = new Date(Date.now() - 4 * 86_400_000);
+  const start = new Date(end.getTime() - 86_400_000);
+  const dateRange = `${isoDate(start)},${isoDate(end)}`;
+  const url = new URL("https://gateway.api.globalfishingwatch.org/v3/4wings/report");
+  url.searchParams.set("spatial-resolution", "LOW");
+  url.searchParams.set("temporal-resolution", "ENTIRE");
+  url.searchParams.set("spatial-aggregation", "false");
+  url.searchParams.set("datasets[0]", "public-global-presence:latest");
+  url.searchParams.set("filters[0]", 'vessel_type in ("cargo","carrier")');
+  url.searchParams.set("date-range", dateRange);
+  url.searchParams.set("format", "JSON");
+  const source = await fetch(url, {
+    method: "POST",
+    headers: { authorization: `Bearer ${gfwApiToken}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      geojson: {
+        type: "Polygon",
+        coordinates: [[[-179.9, -75], [179.9, -75], [179.9, 85], [-179.9, 85], [-179.9, -75]]],
+      },
+    }),
+  });
+  const report = await readGfwReport(source);
+  const cells = new Map<string, WorldWakeCell>();
+  for (const item of (report.entries ?? []).flatMap((entry) => Object.values(entry).flat())) {
+    const lat = Number(item.lat);
+    const lon = Number(item.lon);
+    const hours = Number(item.hours);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(hours) || hours <= 0) continue;
+    const cellLat = Math.floor(lat) + 0.5;
+    const cellLon = Math.floor(lon) + 0.5;
+    const key = `${cellLon},${cellLat}`;
+    const existing = cells.get(key);
+    if (existing) {
+      existing.hours += hours;
+      existing.vesselIds += Number(item.vesselIDs ?? item.vesselIds ?? 0);
+    } else {
+      cells.set(key, {
+        date: String(item.date ?? dateRange),
+        lat: cellLat,
+        lon: cellLon,
+        hours,
+        vesselIds: Number(item.vesselIDs ?? item.vesselIds ?? 0),
+      });
+    }
+  }
+  const snapshot: WorldWakeSnapshot = {
+    observedAt: new Date().toISOString(),
+    dateRange,
+    availableThrough: isoDate(end),
+    delayDays: 4,
+    source: "Global Fishing Watch · AIS vessel presence",
+    resolution: "one-degree-aggregate",
+    filter: "cargo-and-carrier",
+    cells: [...cells.values()].sort((a, b) => b.hours - a.hours).slice(0, 5_000),
+  };
+  worldWakeCache = { expiresAt: Date.now() + 12 * 60 * 60 * 1000, snapshot };
+  return snapshot;
+  });
+}
+
+function prepareWorldWake() {
+  if (worldWakePromise || (worldWakeCache && worldWakeCache.expiresAt > Date.now())) return;
+  worldWakeError = undefined;
+  worldWakePromise = fetchWorldWakeSnapshot()
+    .then(() => undefined)
+    .catch((error) => { worldWakeError = error instanceof Error ? error.message : "world wake unavailable"; })
+    .finally(() => { worldWakePromise = undefined; });
 }
 
 const httpServer = createServer(async (request, response) => {
@@ -109,6 +223,10 @@ const httpServer = createServer(async (request, response) => {
       kystverketFrames,
       acceptedKystverketFrames,
       lastKystverketFrameAt,
+      worldWake: !gfwApiToken ? "disabled" : worldWakeCache ? "ready" : worldWakePromise ? "preparing" : worldWakeError ? "error" : "idle",
+      worldWakeError,
+      worldWakeCells: worldWakeCache?.snapshot.cells.length ?? 0,
+      worldWakeAvailableThrough: worldWakeCache?.snapshot.availableThrough,
       vessels: vessels.size,
       clients: downstream.clients.size,
       now: new Date().toISOString(),
@@ -125,6 +243,19 @@ const httpServer = createServer(async (request, response) => {
     } catch (error) {
       writeJson(response, 502, { configured: true, message: error instanceof Error ? error.message : "SAR source unavailable" });
     }
+    return;
+  }
+  if (request.url === "/api/world-wake") {
+    if (!gfwApiToken) {
+      writeJson(response, 503, { configured: false, message: "Global Fishing Watch token not configured" });
+      return;
+    }
+    if (worldWakeCache && worldWakeCache.expiresAt > Date.now()) {
+      writeJson(response, 200, worldWakeCache.snapshot);
+      return;
+    }
+    prepareWorldWake();
+    writeJson(response, 202, { configured: true, status: "preparing", message: worldWakeError }, "no-store");
     return;
   }
   response.writeHead(200, { "content-type": "text/plain; charset=utf-8" });

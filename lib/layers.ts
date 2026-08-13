@@ -12,6 +12,7 @@ export type LayerId =
   | "port-congestion"
   | "ais-gaps"
   | "sea-ice"
+  | "world-wake"
   | "dark-vessels"
   | "canal-restrictions"
   | "piracy"
@@ -42,6 +43,7 @@ export const DATA_LAYERS: DataLayer[] = [
   { id: "port-congestion", label: "Port congestion", source: "AIS nav status · derived", status: "active", description: "Anchor and moored counts near known ports. Seven-day trends require history.", defaultOn: false },
   { id: "ais-gaps", label: "AIS gaps", source: "AIS history · derived", status: "active", description: "Marks vessels silent for over ten minutes without claiming intent.", defaultOn: true },
   { id: "sea-ice", label: "Sea ice", source: "NSIDC Sea Ice Index", status: "active", description: "Daily concentration snapshot, reprojected from NSIDC polar GeoTIFFs." },
+  { id: "world-wake", label: "Four-day world wake", source: "Global Fishing Watch", status: "credential", description: "Global cargo and carrier AIS presence delayed by approximately four days; an aggregate historical field, not live vessel positions.", defaultOn: true },
   { id: "dark-vessels", label: "SAR detections", source: "Global Fishing Watch", status: "credential", description: "Free account and API token required for Sentinel-1 vessel detections." },
   { id: "canal-restrictions", label: "Canal advisories", source: "Panama Canal Authority", status: "active", description: "Latest official draft, outage, navigation, booking and operations advisories." },
   { id: "piracy", label: "Piracy incidents", source: "IMB PRC", status: "active", description: "Current-year reported piracy and armed-robbery incidents from the public IMB map." },

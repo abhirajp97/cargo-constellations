@@ -67,6 +67,25 @@ export type SarSnapshot = {
   detections: SarDetection[];
 };
 
+export type WorldWakeCell = {
+  date: string;
+  lat: number;
+  lon: number;
+  hours: number;
+  vesselIds: number;
+};
+
+export type WorldWakeSnapshot = {
+  observedAt: string;
+  dateRange: string;
+  availableThrough: string;
+  delayDays: 4;
+  source: string;
+  resolution: "one-degree-aggregate";
+  filter: "cargo-and-carrier";
+  cells: WorldWakeCell[];
+};
+
 export type StaticIntelligence = {
   seaIce: SeaIceSnapshot;
   piracy: PiracySnapshot;
@@ -97,4 +116,11 @@ export async function fetchSarDetections(websocketUrl: string): Promise<SarSnaps
   const response = await fetch(`${relayHttpBase(websocketUrl)}/api/sar`);
   if (!response.ok) throw new Error(response.status === 503 ? "GFW token not configured" : "SAR source unavailable");
   return response.json() as Promise<SarSnapshot>;
+}
+
+export async function fetchWorldWake(websocketUrl: string): Promise<WorldWakeSnapshot | null> {
+  const response = await fetch(`${relayHttpBase(websocketUrl)}/api/world-wake`);
+  if (response.status === 202) return null;
+  if (!response.ok) throw new Error(response.status === 503 ? "GFW token not configured" : "World wake unavailable");
+  return response.json() as Promise<WorldWakeSnapshot>;
 }
