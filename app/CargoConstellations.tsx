@@ -1210,7 +1210,7 @@ export default function CargoConstellations() {
       <canvas
         ref={canvasRef}
         className="globe-canvas"
-        aria-label="Interactive globe showing identified cargo-vessel paths from delayed hourly AIS observations"
+        aria-label="Interactive globe showing identified cargo-vessel paths from delayed daily AIS observations"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -1243,7 +1243,7 @@ export default function CargoConstellations() {
         <div className={`history-banner voyage-history ${delayedVoyageStatus}`}>
           <span className="voyage-glyph" aria-hidden="true" />
           {delayedVoyageStatus === "live" && delayedVoyagePilot
-            ? `PRIMARY VIEW · ${delayedVoyagePilot.candidates.length} IDENTIFIED CARGO VOYAGES · ${delayedVoyagePilot.dateRange} · HOURLY GRIDDED AIS`
+            ? `PRIMARY VIEW · ${delayedVoyagePilot.candidates.length} IDENTIFIED CARGO VOYAGES · ${delayedVoyagePilot.dateRange} · DAILY GRIDDED AIS`
             : delayedVoyageStatus === "loading" ? "ASSEMBLING THE FOUR-DAY VOYAGE CONSTELLATIONS" : "DELAYED VOYAGE PILOT UNAVAILABLE"}
         </div>
       )}
@@ -1264,7 +1264,7 @@ export default function CargoConstellations() {
 
       <div className="map-verse" aria-hidden="true">
         <span>FIELD I · FOUR DAYS OF PASSAGE</span>
-        <p>Long passages emerge<br />from a chain of hourly stars.</p>
+        <p>Long passages emerge<br />from a chain of daily stars.</p>
       </div>
 
       <aside className="data-rail">
@@ -1272,7 +1272,7 @@ export default function CargoConstellations() {
           <p className="eyebrow">MULTI-CORRIDOR VOYAGES</p>
           <div className="primary-stat"><strong>{delayedVoyagePilot?.candidates.length.toLocaleString() ?? "···"}</strong><span>identified cargo vessels shown</span></div>
           <p className="wake-date">{delayedVoyagePilot ? <><strong>{delayedVoyagePilot.dateRange}</strong> · {delayedVoyagePilot.corridors.filter((corridor) => corridor.status === "live").length} major corridors</> : "Gathering identity-preserving observations"}</p>
-          <p className="coverage-explainer">Each colored line joins four days of hourly gridded AIS observations for one identified vessel. The view is delayed about four days; the space between observations is not an exact sailed track.</p>
+          <p className="coverage-explainer">Each colored line joins four days of daily gridded AIS observations for one identified vessel. The view is delayed about four days; the space between observations is not an exact sailed track.</p>
           {delayedVoyagePilot && (
             <div className="corridor-switcher" aria-label="Voyage corridor focus">
               <button
@@ -1376,7 +1376,7 @@ export default function CargoConstellations() {
                 <div className="intel-readout voyage-readout">
                   <span>IDENTITY-PRESERVING PILOT</span>
                   <strong>{delayedVoyagePilot.qualifyingVessels.toLocaleString()} long voyages qualify</strong>
-                  <small>{delayedVoyagePilot.rows.toLocaleString()} hourly cells · {delayedVoyagePilot.identifiedVessels.toLocaleString()} corridor vessel IDs · showing {delayedVoyagePilot.candidates.length.toLocaleString()}</small>
+                  <small>{delayedVoyagePilot.rows.toLocaleString()} daily cells · {delayedVoyagePilot.identifiedVessels.toLocaleString()} corridor vessel IDs · showing {delayedVoyagePilot.candidates.length.toLocaleString()}</small>
                 </div>
               )}
               {layers.has("sea-ice") && intelligence && (
@@ -1440,7 +1440,7 @@ export default function CargoConstellations() {
         <section className="rail-section rail-note">
           <p className="eyebrow">TRAVELER&apos;S KEY</p>
           <p>Gold constellations preserve one vessel&apos;s identity through hourly observations. Teal presence marks are aggregate context and cannot show a ship&apos;s path.</p>
-          <div className="truth-key"><span className="gridded-line" />Delayed hourly AIS</div>
+          <div className="truth-key"><span className="gridded-line" />Delayed daily AIS</div>
           <div className="truth-key"><span className="solid-line" />Received AIS</div>
           <div className="truth-key"><span className="brush-line" />Inferred horizon</div>
           <div className="truth-key"><span className="dotted-line" />Reference corridor</div>
@@ -1534,7 +1534,7 @@ export default function CargoConstellations() {
 
       <footer className="footer-note">
         <span>{["winds", "waves", "currents"].some((id) => layers.has(id as LayerId)) ? "THE LIVING WEATHER" : "THE RECEIVED PASSAGE"}</span>
-        <p>{["winds", "waves", "currents"].some((id) => layers.has(id as LayerId)) ? "NOAA GFS and marine model samples via Open-Meteo · visualization only" : "Gold paths are ordered hourly AIS cells · Nordic solid trails are received AIS · teal is aggregate context"}</p>
+        <p>{["winds", "waves", "currents"].some((id) => layers.has(id as LayerId)) ? "NOAA GFS and marine model samples via Open-Meteo · visualization only" : "Colored paths are ordered daily AIS cells · Nordic solid trails are received AIS · teal is aggregate context"}</p>
       </footer>
     </main>
   );

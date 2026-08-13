@@ -19,7 +19,7 @@ const glossary = [
   ["Chokepoint", "A narrow passage—such as a canal or strait—through which a large share of trade must pass."],
   ["Listening waters", "The geographic reach of the receiver networks currently feeding this world. It is coverage, not a claim that every ship inside it will be heard."],
   ["Inferred voyage", "A pale interpretive path from the last received position toward a confidently resolved AIS destination. It is not a filed route or navigation advice."],
-  ["Delayed voyage", "A gold path joining hourly gridded AIS observations that retain the same vessel identity. It shows observed movement, but it is coarser and later than raw AIS."],
+  ["Delayed voyage", "A colored path joining daily gridded AIS observations that retain the same vessel identity. It shows observed movement, but it is coarser and later than raw AIS."],
   ["World wake", "A low-resolution field of cargo-vessel presence observed by Global Fishing Watch about four days earlier. It is historical density, not a set of live vessel positions."],
 ];
 
@@ -78,7 +78,7 @@ export default function WikiPage() {
           <div className="signal-story" aria-label="How vessel data reaches the globe">
             <div><b>1</b><strong>Ships leave signals</strong><p>Cargo and carrier vessels broadcast AIS positions across the world. Coverage varies with coastal and satellite reception.</p></div>
             <i aria-hidden="true">→</i>
-            <div><b>2</b><strong>Identity survives the grid</strong><p>Global Fishing Watch publishes hourly gridded observations that retain a vessel identity for this bounded report.</p></div>
+            <div><b>2</b><strong>Identity survives the grid</strong><p>Global Fishing Watch publishes daily gridded observations that retain a vessel identity for these bounded reports.</p></div>
             <i aria-hidden="true">→</i>
             <div><b>3</b><strong>The horizon settles</strong><p>The latest complete global view arrives about four days later. The date is shown prominently because the delay is part of the meaning.</p></div>
             <i aria-hidden="true">→</i>
@@ -117,7 +117,7 @@ export default function WikiPage() {
               <li>Radar detections unmatched to AIS are interesting, but they do not prove a vessel deliberately went dark.</li>
               <li>Weather and ocean fields are models sampled across large areas; they are not readings from each ship.</li>
               <li>AIS destinations are manually entered free text. A resolved port and great-circle path are interpretive context, not a captain&apos;s filed route.</li>
-              <li>Colored delayed voyages join hourly grid cells for the same vessel. They show observed order, not the exact path between hours, and cover five bounded shipping corridors rather than every ocean cell.</li>
+              <li>Colored delayed voyages join daily grid cells for the same vessel. They show observed order, not the exact path between days, and cover five bounded shipping corridors rather than every ocean cell.</li>
               <li>The optional Global Fishing Watch world wake is a low-resolution aggregate presence heatmap. It cannot identify or trace an individual ship.</li>
               <li>Public commodity benchmarks are monthly context. They are not live quotes or trading advice.</li>
             </ul>

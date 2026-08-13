@@ -111,6 +111,16 @@ async function readGfwReport(source: Response) {
   throw new Error("GFW report did not finish within its recovery window");
 }
 
+function collectGfwPresenceRows(report: { entries?: Array<Record<string, Array<Record<string, unknown>>>> }) {
+  const rows: GfwPresenceRow[] = [];
+  for (const entry of report.entries ?? []) {
+    for (const values of Object.values(entry)) {
+      for (const value of values) rows.push(value);
+    }
+  }
+  return rows;
+}
+
 function writeJson(response: import("node:http").ServerResponse, status: number, body: unknown, cacheControl = "public, max-age=300") {
   response.writeHead(status, { "content-type": "application/json", "cache-control": cacheControl });
   response.end(JSON.stringify(body));
@@ -181,8 +191,8 @@ async function fetchGfwVoyageProbe(): Promise<GfwVoyageProbe> {
     for (const corridor of gfwVoyageCorridors) {
       try {
         const url = new URL("https://gateway.api.globalfishingwatch.org/v3/4wings/report");
-        url.searchParams.set("spatial-resolution", "LOW");
-        url.searchParams.set("temporal-resolution", "HOURLY");
+        url.searchParams.set("spatial-resolution", "HIGH");
+        url.searchParams.set("temporal-resolution", "DAILY");
         url.searchParams.set("spatial-aggregation", "false");
         url.searchParams.set("group-by", "VESSEL_ID");
         url.searchParams.set("datasets[0]", "public-global-presence:latest");
@@ -195,10 +205,10 @@ async function fetchGfwVoyageProbe(): Promise<GfwVoyageProbe> {
           body: JSON.stringify({ geojson: { type: "Polygon", coordinates: [corridor.coordinates] } }),
         });
         const report = await readGfwReport(source);
-        const corridorRows = (report.entries ?? []).flatMap((entry) => Object.values(entry).flat()) as GfwPresenceRow[];
+        const corridorRows = collectGfwPresenceRows(report);
         const summary = summarizeGfwVoyageProbe(corridorRows, {
           minimumVessels: 5,
-          minimumOrderedPoints: 18,
+          minimumOrderedPoints: 4,
           minimumDistanceNm: 180,
           maximumSpeedKn: 48,
           limit: 36,
@@ -236,14 +246,14 @@ async function fetchGfwVoyageProbe(): Promise<GfwVoyageProbe> {
     const rankedCandidates = candidates.sort((a, b) => b.distanceNm - a.distanceNm || b.points.length - a.points.length).slice(0, 180);
     if (rankedCandidates.length === 0) throw new Error("No corridor voyage reports completed successfully");
     const minimumVessels = 20;
-    const minimumOrderedPoints = 18;
+    const minimumOrderedPoints = 4;
     const minimumDistanceNm = 180;
     const result: GfwVoyageProbe = {
       observedAt: new Date().toISOString(),
       dateRange,
       region: "Five major shipping corridors",
       source: "Global Fishing Watch · public-global-presence:latest",
-      caveat: "Four days of hourly gridded AIS presence, not raw AIS. Lines connect observations for the same vessel; gaps between hourly cells are not exact sailed tracks.",
+      caveat: "Four days of daily gridded AIS presence, not raw AIS. Lines connect observations for the same vessel; gaps between daily cells are not exact sailed tracks.",
       windowDays,
       corridors,
       verdict: rankedCandidates.length >= minimumVessels && corridors.filter((corridor) => corridor.status === "live").length >= 3 ? "pass" : "fail",
