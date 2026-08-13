@@ -200,7 +200,7 @@ export default function CargoConstellations() {
   const movedRef = useRef(false);
   const pointerRef = useRef<[number, number]>([0, 0]);
   const autoRotateRef = useRef(false);
-  const zoomRef = useRef(1.45);
+  const zoomRef = useRef(2.4);
   const hitRef = useRef<Array<{ mmsi: string; x: number; y: number }>>([]);
   const filterRef = useRef(new Set<Commodity>(FILTERS));
   const layerRef = useRef(defaultLayerSet());
@@ -881,7 +881,7 @@ export default function CargoConstellations() {
 
       if (layerRef.current.has("delayed-voyages") && delayedVoyagePilotRef.current) {
         context.save();
-        context.globalCompositeOperation = "lighter";
+        context.globalCompositeOperation = "source-over";
         context.lineCap = "round";
         context.lineJoin = "round";
         for (const voyage of delayedVoyagePilotRef.current.candidates) {
@@ -895,8 +895,8 @@ export default function CargoConstellations() {
             if (drawing) context.lineTo(point[0], point[1]); else context.moveTo(point[0], point[1]);
             drawing = true;
           }
-          context.strokeStyle = "rgba(243, 210, 138, .24)";
-          context.lineWidth = 1.15;
+          context.strokeStyle = "rgba(243, 210, 138, .2)";
+          context.lineWidth = 1.1;
           context.stroke();
           const last = voyage.points.at(-1);
           if (last && visible([last.lon, last.lat])) {
@@ -1140,7 +1140,7 @@ export default function CargoConstellations() {
 
   const onWheel = useCallback((event: React.WheelEvent<HTMLCanvasElement>) => {
     event.preventDefault();
-    zoomRef.current = Math.max(0.78, Math.min(2.2, zoomRef.current * Math.exp(-event.deltaY * 0.001)));
+    zoomRef.current = Math.max(0.78, Math.min(4.5, zoomRef.current * Math.exp(-event.deltaY * 0.001)));
   }, []);
 
   const toggleFilter = (commodity: Commodity) => {
