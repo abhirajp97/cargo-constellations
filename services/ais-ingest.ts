@@ -191,7 +191,7 @@ async function fetchGfwVoyageProbe(): Promise<GfwVoyageProbe> {
     for (const corridor of gfwVoyageCorridors) {
       try {
         const url = new URL("https://gateway.api.globalfishingwatch.org/v3/4wings/report");
-        url.searchParams.set("spatial-resolution", "HIGH");
+        url.searchParams.set("spatial-resolution", "LOW");
         url.searchParams.set("temporal-resolution", "DAILY");
         url.searchParams.set("spatial-aggregation", "false");
         url.searchParams.set("group-by", "VESSEL_ID");
