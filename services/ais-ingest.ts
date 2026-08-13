@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import net from "node:net";
 import { mergeAisEnvelope, type AisEnvelope, type Vessel } from "../lib/ais.js";
 import { NmeaAisDecoder } from "../lib/nmea-ais.js";
+import { summarizeGfwVoyageProbe, type GfwPresenceRow, type GfwProbeSummary } from "../lib/gfw-voyage-probe.js";
 
 const upstreamUrl = "wss://stream.aisstream.io/v0/stream";
 const fintrafficMqttUrl = "wss://meri.digitraffic.fi:443/mqtt";
@@ -25,6 +26,14 @@ const dirty = new Set<string>();
 type SarDetection = { date: string; lat: number; lon: number; detections: number };
 type SarSnapshot = { observedAt: string; dateRange: string; source: string; filter: "unmatched-with-ais"; detections: SarDetection[] };
 let sarCache: { expiresAt: number; snapshot: SarSnapshot } | undefined;
+type GfwVoyageProbe = GfwProbeSummary & {
+  observedAt: string;
+  dateRange: string;
+  region: string;
+  source: string;
+  caveat: string;
+};
+let gfwVoyageProbeCache: { expiresAt: number; result: GfwVoyageProbe } | undefined;
 const worldWakeTileCache = new Map<string, { expiresAt: number; contentType: string; data: Buffer }>();
 let gfwReportQueue: Promise<void> = Promise.resolve();
 
@@ -89,7 +98,7 @@ async function fetchSarSnapshot(): Promise<SarSnapshot> {
   const report = await readGfwReport(source);
   const detections = (report.entries ?? [])
     .flatMap((entry) => Object.values(entry).flat())
-    .filter((item): item is SarDetection => Boolean(item) && Number.isFinite(item.lat) && Number.isFinite(item.lon) && item.detections > 0)
+    .filter((item): item is SarDetection => Number.isFinite(item?.lat) && Number.isFinite(item?.lon) && typeof item?.detections === "number" && item.detections > 0)
     .slice(0, 6000);
   const snapshot: SarSnapshot = {
     observedAt: new Date().toISOString(),
@@ -100,6 +109,48 @@ async function fetchSarSnapshot(): Promise<SarSnapshot> {
   };
   sarCache = { expiresAt: Date.now() + 6 * 60 * 60 * 1000, snapshot };
   return snapshot;
+  });
+}
+
+async function fetchGfwVoyageProbe(): Promise<GfwVoyageProbe> {
+  if (!gfwApiToken) throw new Error("GFW_API_TOKEN is not configured");
+  if (gfwVoyageProbeCache && gfwVoyageProbeCache.expiresAt > Date.now()) return gfwVoyageProbeCache.result;
+  return queueGfwReport(async () => {
+    if (gfwVoyageProbeCache && gfwVoyageProbeCache.expiresAt > Date.now()) return gfwVoyageProbeCache.result;
+    const end = new Date(Date.now() - 4 * 86_400_000);
+    const start = new Date(end.getTime() - 86_400_000);
+    const dateRange = `${isoDate(start)},${isoDate(end)}`;
+    const url = new URL("https://gateway.api.globalfishingwatch.org/v3/4wings/report");
+    url.searchParams.set("spatial-resolution", "HIGH");
+    url.searchParams.set("temporal-resolution", "HOURLY");
+    url.searchParams.set("spatial-aggregation", "false");
+    url.searchParams.set("group-by", "VESSEL_ID");
+    url.searchParams.set("datasets[0]", "public-global-presence:latest");
+    url.searchParams.set("filters[0]", 'vessel_type in ("cargo","carrier")');
+    url.searchParams.set("date-range", dateRange);
+    url.searchParams.set("format", "JSON");
+    const source = await fetch(url, {
+      method: "POST",
+      headers: { authorization: `Bearer ${gfwApiToken}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        geojson: {
+          type: "Polygon",
+          coordinates: [[[99, 0], [105, 0], [105, 7], [99, 7], [99, 0]]],
+        },
+      }),
+    });
+    const report = await readGfwReport(source);
+    const rows = (report.entries ?? []).flatMap((entry) => Object.values(entry).flat()) as GfwPresenceRow[];
+    const result: GfwVoyageProbe = {
+      observedAt: new Date().toISOString(),
+      dateRange,
+      region: "Singapore and the Malacca Strait · 99–105°E, 0–7°N",
+      source: "Global Fishing Watch · public-global-presence:latest",
+      caveat: "Hourly gridded AIS presence, not raw AIS. A pass only establishes that vessel identity and ordering survive this bounded report.",
+      ...summarizeGfwVoyageProbe(rows),
+    };
+    gfwVoyageProbeCache = { expiresAt: Date.now() + 12 * 60 * 60 * 1000, result };
+    return result;
   });
 }
 
@@ -196,6 +247,18 @@ const httpServer = createServer(async (request, response) => {
       writeJson(response, 200, await fetchSarSnapshot());
     } catch (error) {
       writeJson(response, 502, { configured: true, message: error instanceof Error ? error.message : "SAR source unavailable" });
+    }
+    return;
+  }
+  if (request.url === "/api/gfw-voyage-probe") {
+    if (!gfwApiToken) {
+      writeJson(response, 503, { configured: false, message: "Global Fishing Watch token not configured" }, "no-store");
+      return;
+    }
+    try {
+      writeJson(response, 200, await fetchGfwVoyageProbe(), "public, max-age=21600");
+    } catch (error) {
+      writeJson(response, 502, { configured: true, message: error instanceof Error ? error.message : "GFW voyage probe unavailable" }, "no-store");
     }
     return;
   }

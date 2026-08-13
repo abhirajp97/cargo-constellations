@@ -31,8 +31,8 @@ export type DataLayer = {
 };
 
 export const DATA_LAYERS: DataLayer[] = [
-  { id: "world-wake", label: "Four-day cargo wake", source: "Global Fishing Watch", status: "credential", description: "The primary view: global cargo and carrier AIS presence delayed by approximately four days, rendered as an aggregate field rather than live positions.", defaultOn: true },
-  { id: "live-vessels", label: "Nordic live sample", source: "Fintraffic · Kystverket", status: "active", description: "Optional terrestrial AIS positions from Finland and Norway. This is a regional sample, not global coverage." },
+  { id: "live-vessels", label: "Observed Nordic vessels", source: "Fintraffic · Kystverket", status: "active", description: "Identity-preserving terrestrial AIS positions from Finland and Norway. Successive received fixes form real, regional trails.", defaultOn: true },
+  { id: "world-wake", label: "Traffic memory (aggregate)", source: "Global Fishing Watch", status: "credential", description: "Optional four-day-delayed cargo-presence density. These marks are aggregate cells, never individual vessels or routes.", defaultOn: false },
   { id: "land", label: "Landmass", source: "Natural Earth", status: "active", description: "Public-domain 110m land geometry.", defaultOn: true, locked: true },
   { id: "coverage", label: "Listening waters", source: "Fintraffic · Kystverket", status: "active", description: "The honest geographic reach of the optional Nordic live receivers." },
   { id: "bathymetry", label: "Bathymetry", source: "Natural Earth · SRTM+", status: "active", description: "Real nested depth contours at 200, 1,000, 3,000 and 5,000 metres.", defaultOn: true },

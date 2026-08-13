@@ -20,13 +20,14 @@ test("server-renders the Cargo Constellations experience", async () => {
   const html = await response.text();
   assert.match(html, /Cargo Constellations/i);
   assert.match(html, /THE RECENT MEMORY OF GLOBAL TRADE/);
-  assert.match(html, /THE FOUR-DAY FIELD/);
-  assert.match(html, /Interactive globe showing four-day-delayed global cargo presence/);
+  assert.match(html, /OBSERVED VESSELS/);
+  assert.match(html, /Interactive globe showing observed cargo vessels and their received AIS trails/);
   assert.match(html, /WORLD LAYERS/);
   assert.match(html, /Bathymetry/);
   assert.match(html, /Listening waters/);
-  assert.match(html, /Four-day cargo wake/);
-  assert.match(html, /Nordic live sample/);
+  assert.match(html, /Traffic memory \(aggregate\)/);
+  assert.match(html, /Observed Nordic vessels/);
+  assert.doesNotMatch(html, /PRIMARY VIEW · GLOBAL CARGO WAKE/);
   assert.match(html, /NOAA GFS/);
   assert.match(html, /NSIDC Sea Ice Index/);
   assert.match(html, /World Bank Pink Sheet/);

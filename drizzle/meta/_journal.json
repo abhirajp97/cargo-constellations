@@ -1,5 +1,13 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "entries": []
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1786651308875,
+      "tag": "0000_clever_ronan",
+      "breakpoints": true
+    }
+  ]
 }

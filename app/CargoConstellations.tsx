@@ -45,10 +45,9 @@ const FILTERS: Commodity[] = ["container", "dry-bulk", "tanker", "general"];
 const EMPTY_COUNTS: Record<Commodity, number> = { container: 0, "dry-bulk": 0, tanker: 0, general: 0, unknown: 0 };
 const DEFAULT_AIS_WEBSOCKET_URL = "wss://cargo-constellations-ais-relay.onrender.com";
 const AIS_WEBSOCKET_URL = process.env.NEXT_PUBLIC_AIS_WEBSOCKET_URL || DEFAULT_AIS_WEBSOCKET_URL;
-const LIVE_GRACE_PERIOD_MS = 45_000;
 
 const LAYER_GUIDE: Partial<Record<LayerId, { color: string; cue: string; focus?: [number, number] }>> = {
-  "live-vessels": { color: "#E6B86C", cue: "Crisp lanterns reveal the optional live sample heard by receivers in Finland and Norway.", focus: [-15, -57] },
+  "live-vessels": { color: "#E6B86C", cue: "Crisp lanterns and solid trails are successive AIS fixes heard in Finland and Norway.", focus: [-15, -57] },
   coverage: { color: "#9FCDB9", cue: "Soft washes reveal where the current public receiver networks can hear ships.", focus: [-15, -57] },
   bathymetry: { color: "#4B8F9D", cue: "Nested blue contours show depth bands beneath the ocean." },
   routes: { color: "#E9C46A", cue: "Gold dotted paths are computed sea routes, not live vessel tracks." },
@@ -61,7 +60,7 @@ const LAYER_GUIDE: Partial<Record<LayerId, { color: string; cue: string; focus?:
   "port-congestion": { color: "#F08D68", cue: "Warm rings gather around ports with anchored or moored vessels." },
   "ais-gaps": { color: "#F08D68", cue: "Dotted rings mark vessels silent for more than ten minutes." },
   "sea-ice": { color: "#D9F2F4", cue: "Pale polar cells show daily sea-ice concentration above 15%.", focus: [0, -62] },
-  "world-wake": { color: "#74DCC7", cue: "A soft global wake shows cargo-vessel presence observed about four days ago—not live ships." },
+  "world-wake": { color: "#74DCC7", cue: "Teal marks are optional aggregate cargo-presence cells—not ships, identities, or routes." },
   "dark-vessels": { color: "#F4A868", cue: "Crosses are radar vessel detections not matched to AIS—not proof of intent." },
   "canal-restrictions": { color: "#F08D68", cue: "A warm dashed pulse marks current Panama Canal advisories.", focus: [79.68, -9.08] },
   piracy: { color: "#FF765F", cue: "Warm diamonds are incidents reported to the IMB Piracy Reporting Centre.", focus: [-100, -8] },
@@ -419,28 +418,11 @@ export default function CargoConstellations() {
 
     let socket: WebSocket | undefined;
     let retry: number | undefined;
-    let demo: ReturnType<typeof createMockAisSource> | undefined;
     let stopped = false;
-
-    const startDemo = () => {
-      if (stopped || demo) return;
-      demo = createMockAisSource((message) => update(message, "mock"));
-      setConnection("demo");
-    };
-
-    const stopDemo = () => {
-      demo?.stop();
-      demo = undefined;
-      for (const [mmsi, vessel] of storeRef.current) {
-        if (vessel.source === "mock") storeRef.current.delete(mmsi);
-      }
-    };
-
-    const demoTimer = window.setTimeout(startDemo, LIVE_GRACE_PERIOD_MS);
     const connect = () => {
       if (stopped) return;
       socket = new WebSocket(wsUrl);
-      socket.onopen = () => { if (!demo) setConnection("connecting"); };
+      socket.onopen = () => setConnection("connecting");
       socket.onmessage = (event) => {
         try {
           const frame = JSON.parse(event.data);
@@ -466,14 +448,12 @@ export default function CargoConstellations() {
             });
           }
           if (receivedPosition) {
-            window.clearTimeout(demoTimer);
-            stopDemo();
             setConnection("live");
           }
         } catch { /* ignore malformed downstream frames */ }
       };
       socket.onclose = () => {
-        if (!demo) setConnection("offline");
+        setConnection("offline");
         retry = window.setTimeout(connect, 3000);
       };
       socket.onerror = () => socket?.close();
@@ -482,8 +462,6 @@ export default function CargoConstellations() {
     return () => {
       stopped = true;
       if (retry) window.clearTimeout(retry);
-      window.clearTimeout(demoTimer);
-      demo?.stop();
       socket?.close();
     };
   }, [wsUrl, liveVesselsRequested]);
@@ -1156,7 +1134,7 @@ export default function CargoConstellations() {
       <canvas
         ref={canvasRef}
         className="globe-canvas"
-        aria-label="Interactive globe showing four-day-delayed global cargo presence"
+        aria-label="Interactive globe showing observed cargo vessels and their received AIS trails"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -1180,8 +1158,8 @@ export default function CargoConstellations() {
           </button>
         </nav>
         <div className="clock-block">
-          <span>OBSERVATION HORIZON</span>
-          <strong>{worldWake?.availableThrough ?? "− 4 DAYS"}</strong>
+          <span>PRIMARY TRUTH</span>
+          <strong>OBSERVED AIS</strong>
         </div>
       </header>
 
@@ -1189,32 +1167,32 @@ export default function CargoConstellations() {
         <div className={`history-banner ${worldWakeStatus}`}>
           <span className="wake-glyph" aria-hidden="true" />
           {worldWakeStatus === "live" && worldWake
-            ? `PRIMARY VIEW · GLOBAL CARGO WAKE · OBSERVED THROUGH ${worldWake.availableThrough} · ~4 DAYS DELAYED`
-            : worldWakeStatus === "loading" ? "PREPARING THE FOUR-DAY GLOBAL WAKE" : "GLOBAL WAKE TEMPORARILY UNAVAILABLE"}
+            ? `CONTEXT ONLY · AGGREGATE TRAFFIC MEMORY · OBSERVED THROUGH ${worldWake.availableThrough} · NOT VESSEL ROUTES`
+            : worldWakeStatus === "loading" ? "PREPARING THE AGGREGATE TRAFFIC MEMORY" : "AGGREGATE TRAFFIC MEMORY UNAVAILABLE"}
         </div>
       )}
       {layers.has("live-vessels") && (
         <div className={`source-banner ${connection}`}>
           <span className="status-dot" />
-          {connection === "live" ? "OPTIONAL LIVE SAMPLE · FINLAND + NORWAY ONLY" : connection === "connecting" ? "AWAKENING THE NORDIC RECEIVERS" : connection === "offline" ? "NORDIC AIS RELAY SLEEPING" : "OPTIONAL STORYBOOK SAMPLE"}
+          {connection === "live" ? "RECEIVED AIS · FINLAND + NORWAY · SOLID TRAILS ARE OBSERVED" : connection === "connecting" ? "AWAKENING THE NORDIC RECEIVERS" : connection === "offline" ? "NORDIC AIS RELAY SLEEPING" : "LOCAL SYNTHETIC PREVIEW"}
         </div>
       )}
 
       <div className="map-verse" aria-hidden="true">
-        <span>FIELD I · FOUR DAYS AGO</span>
-        <p>The ocean remembers<br />where the cargo passed.</p>
+        <span>FIELD I · OBSERVED PASSAGE</span>
+        <p>A route begins only<br />when a ship leaves fixes.</p>
       </div>
 
       <aside className="data-rail">
         <section className="rail-section overview">
-          <p className="eyebrow">THE FOUR-DAY FIELD</p>
-          <div className="primary-stat wake-stat"><strong>{worldWake?.cells.length.toLocaleString() ?? "···"}</strong><span>sampled cargo-presence signals</span></div>
-          <p className="wake-date">{worldWake ? <>Observed through <strong>{worldWake.availableThrough}</strong></> : "Gathering the recent ocean memory"}</p>
-          <p className="coverage-explainer">A global, aggregate view of where cargo and carrier AIS activity was present approximately four days ago. Brighter wakes mean stronger relative presence—not individual ships.</p>
+          <p className="eyebrow">OBSERVED VESSELS</p>
+          <div className="primary-stat"><strong>{stats.vessels.toLocaleString()}</strong><span>identity-preserving AIS vessels</span></div>
+          <p className="wake-date">{connection === "live" ? <><strong>{stats.moving.toLocaleString()}</strong> currently underway</> : "Listening for received positions"}</p>
+          <p className="coverage-explainer">Solid trails accumulate only from successive fixes received for the same vessel. Public coverage is currently regional while the delayed global voyage archive is being calibrated.</p>
           {layers.has("live-vessels") && (
             <div className="live-sample-summary">
-              <span>OPTIONAL NORDIC SAMPLE</span>
-              <strong>{stats.vessels.toLocaleString()} live positions</strong>
+              <span>RECEIVER COVERAGE</span>
+              <strong>Finland + Norway only</strong>
               <small>{stats.fintraffic} Finland · {stats.kystverket} Norway</small>
             </div>
           )}
@@ -1278,7 +1256,7 @@ export default function CargoConstellations() {
               );
             })}
           </div>
-          <p className="layer-footnote">The four-day wake is the primary global artwork. Crisp vessel lights are an optional Finland-and-Norway sample, never presented as worldwide coverage.</p>
+          <p className="layer-footnote">Observed vessels and their identity-preserving trails are primary. Aggregate traffic, weather and intelligence remain optional context.</p>
 
           {(intelligence || worldWake || sar) && ["sea-ice", "canal-restrictions", "piracy", "commodity-prices", "world-wake", "dark-vessels"].some((id) => layers.has(id as LayerId)) && (
             <div className="intelligence-readouts" aria-label="Active intelligence layer details">
@@ -1316,7 +1294,7 @@ export default function CargoConstellations() {
               )}
               {layers.has("world-wake") && worldWake && (
                 <div className="intel-readout wake-readout">
-                  <span>GLOBAL CARGO WAKE · DELAYED</span>
+                  <span>AGGREGATE TRAFFIC MEMORY · CONTEXT</span>
                   <strong>Observed through {worldWake.availableThrough}</strong>
                   <small>{worldWake.cells.length.toLocaleString()} sampled signals · relative cargo and carrier presence · not live positions</small>
                 </div>
@@ -1342,7 +1320,7 @@ export default function CargoConstellations() {
 
         <section className="rail-section rail-note">
           <p className="eyebrow">TRAVELER&apos;S KEY</p>
-          <p>Diffuse teal and gold wake-fields are four-day-delayed cargo presence. Crisp lanterns and their trails appear only when the optional Nordic live sample is enabled.</p>
+          <p>Crisp lanterns and solid trails are received vessel fixes. Teal presence marks are aggregate context and cannot show a ship&apos;s path.</p>
           <div className="truth-key"><span className="solid-line" />Received AIS</div>
           <div className="truth-key"><span className="brush-line" />Inferred horizon</div>
           <div className="truth-key"><span className="dotted-line" />Reference corridor</div>
@@ -1435,8 +1413,8 @@ export default function CargoConstellations() {
       )}
 
       <footer className="footer-note">
-        <span>{["winds", "waves", "currents"].some((id) => layers.has(id as LayerId)) ? "THE LIVING WEATHER" : "THE OCEAN REMEMBERS"}</span>
-        <p>{["winds", "waves", "currents"].some((id) => layers.has(id as LayerId)) ? "NOAA GFS and marine model samples via Open-Meteo · visualization only" : "A global field observed about four days ago · brighter wakes indicate stronger relative cargo presence"}</p>
+        <span>{["winds", "waves", "currents"].some((id) => layers.has(id as LayerId)) ? "THE LIVING WEATHER" : "THE RECEIVED PASSAGE"}</span>
+        <p>{["winds", "waves", "currents"].some((id) => layers.has(id as LayerId)) ? "NOAA GFS and marine model samples via Open-Meteo · visualization only" : "Solid trails are ordered AIS fixes · gaps and inferred horizons are visibly different"}</p>
       </footer>
     </main>
   );
